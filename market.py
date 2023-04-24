@@ -3,7 +3,7 @@ import asyncio
 
 from exchange import client, bm
 from common import applogger
-from common.bot import send_message
+from bot.bot import send_message
 from common.db import redis_db
 
 
