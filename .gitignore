@@ -1,0 +1,9 @@
+__pycache__
+collector
+research
+tests
+_test.*
+.env
+*.txt
+*.pem
+*.ppk
