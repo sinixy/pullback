@@ -112,8 +112,6 @@ class Trader:
         )
         asset['signal'].append(current_signal_ema)
         asset['struct'].append(current_struct_ema)
-        asset['signal'].roll()
-        asset['struct'].roll()
 
     async def update_segment(self, message):
         symbol = message['s']
@@ -160,6 +158,9 @@ class Trader:
                 next_max_price = (current_max_price[0]+i, current_max_price[1])
                 next_mean_price = (current_mean_price[0]+i, current_mean_price[1])
                 self.update_emas(symbol, next_max_price, next_mean_price)
+                
+            asset['signal'].roll()
+            asset['struct'].roll()
             asset['window'] = PriceWindow((t0, p0))
 
             await self.update_segment(message)
