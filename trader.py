@@ -67,16 +67,15 @@ class PriceWindow:
 
 class Trader:
 
-    def __init__(self, symbols, debug=False, test=False):
+    def __init__(self, symbols, debug=False):
         self.symbols = symbols
         self.debug = debug
-        self.test = test
 
         self._semaphore = asyncio.Semaphore(128)
 
         self.ema = {}
         self.trades = {}
-        condition = lambda x: False if self.test else lambda x: time() - x[0] > 60
+        condition = lambda x: time() - x[0] > 90
         for s in self.symbols:
             self.ema[s] = {
                 'signal': RollingWindowDeque([], condition),

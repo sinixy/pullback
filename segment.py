@@ -15,19 +15,20 @@ class Segment:
     async def should_buy(self, struct_ema):
         if self.end == None:
             raise AssertionError(f'Undefined end of {self}')
-        if self.end - self.start < 20:
-            return False
+        length = self.end - self.start
+        if length < 20 or length > 80:
+            return False, {}
         
         ema = [e for e in struct_ema if self.start <= e[0] <= self.end]
         if ema[0][0] != self.start or ema[-1][0] != self.end:
-            raise AssertionError(f'Cannot fully retreive EMA for {self}')
+            raise AssertionError(f'Cannot fully retreive EMA for {self}. Current values: {ema[0]} - {ema[-1]}')
         
         orders = [(int(order[b't'])/1000, float(order[b'p'])) for _, order in await self._get_orders()]
         # X = [o[0] for o in orders if self.start <= o[0] <= self.end]
         Y = [o[1] for o in orders if self.start <= o[0] <= self.end]
         price_delta = 1 - min(Y) / Y[0]
         if price_delta < 0.015:
-            return False
+            return False, {'delta': price_delta}
         
         # spikes = await ta.find_spikes(X, Y, ema)
         # if len(spikes['spikesIndx']) > 8:

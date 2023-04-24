@@ -24,8 +24,6 @@ class MarketDataCollector:
         applogger.info('Starting the monitoring process')
         self.running = True
         self._loop.create_task(self._listen_for_messages())
-        if not self._loop.is_running():
-            self._loop.run_forever()
 
     async def _save_message(self, message):
         async with self._semaphore:
@@ -41,13 +39,15 @@ class MarketDataCollector:
                 self._loop.create_task(self._save_message(msg['data']))
 
     def stop_monitoring(self):
-        applogger.info('Stoping the monitoring process')
-        self._loop.create_task(self._stop_monitoring())
-
-    async def _stop_monitoring(self):
+        if not self.running:
+            return
         self.running = False
-        await client.close_connection()
         applogger.info('Monitoring process stopped')
+        self._loop.create_task(self._close_connection())
+
+    async def _close_connection(self):
+        await client.close_connection()
+        applogger.info('Connection closed')
     
 
 if __name__ == '__main__':
