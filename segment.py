@@ -26,6 +26,16 @@ class Segment:
         orders = [(int(order[b't'])/1000, float(order[b'p'])) for _, order in await self._get_orders()]
         # X = [o[0] for o in orders if self.start <= o[0] <= self.end]
         Y = [o[1] for o in orders if self.start <= o[0] <= self.end]
+        if len(Y) == 0:
+            msg = f'No order data for {self}.'
+            all_orders = await redis_db.xrange(self.symbol)
+            if len(all_orders) > 0:
+                msg += f' Oldest order: {all_orders[0]}; Latest order: {all_orders[-1]}.'
+            else:
+                msg += f' No order data in the database for {self.symbol}.'
+
+            raise AssertionError(msg)
+        
         price_delta = 1 - min(Y) / Y[0]
         if price_delta < 0.015:
             return False, {'delta': price_delta}
@@ -39,4 +49,4 @@ class Segment:
         return True, {'delta': price_delta}
 
     def __str__(self):
-        return f'<Segment start={self.start}, end={self.end}>'
+        return f'<Segment symbol={self.symbol} start={self.start}, end={self.end}>'
