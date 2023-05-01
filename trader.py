@@ -133,11 +133,15 @@ class Trader:
             asset['segment'] = Segment(symbol, minp=window.min()[1], maxp=window.max()[1], start=asset['struct'][-1][0])
 
     async def update_trades(self, symbol):
-        if not self.trades.get(symbol):
+        trade = self.trades.get(symbol)
+        if not trade:
+            return
+        if trade['status'] == 'SELLING':  # trying to avoid race condition
             return
         
         asset = self[symbol]
         if asset['signal'][-1][1] > asset['struct'][-1][1]:
+            trade['status'] = 'SELLING'
             await logger.info(f'{symbol} SIGNAL crossed over STRUCT - trying to sell it...')
             await self.sell(symbol)
 
@@ -209,7 +213,11 @@ class EmulatorTrader(Trader):
         submit_time = time()
         actual_time, price = await self._mark_price(symbol)
 
-        self.trades[symbol] = {'buy': {'submitTime': submit_time, 'actualTime': actual_time, 'price': price}, 'sell': {}}
+        self.trades[symbol] = {
+            'buy': {'submitTime': submit_time, 'actualTime': actual_time, 'price': price},
+            'sell': {},
+            'status': 'ACTIVE'
+        }
 
         await logger.info(f'{symbol} BUY {self.trades[symbol]["buy"]}')
 
@@ -218,9 +226,9 @@ class EmulatorTrader(Trader):
         actual_time, price = await self._mark_price(symbol)
 
         self.trades[symbol]['sell'] = {'submitTime': submit_time, 'actualTime': actual_time, 'price': price}
-
         await logger.info(f'{symbol} SELL {self.trades[symbol]["sell"]}')
 
+        self.trades[symbol].pop('status')
         await mongo_db.trades.insert_one({
             'symbol': symbol,
             **self.trades.pop(symbol)
