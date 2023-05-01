@@ -4,7 +4,6 @@ import asyncio
 from exchange import client, bm
 from common import applogger
 from bot.bot import send_message
-from common.db import redis_db
 
 
 class MarketDataCollector:
@@ -13,7 +12,6 @@ class MarketDataCollector:
         self.trader = trader
         self._loop = loop
 
-        self._semaphore = asyncio.Semaphore(128)
         if not loop:
             self._loop = asyncio.get_event_loop()
 
@@ -25,18 +23,12 @@ class MarketDataCollector:
         self.running = True
         self._loop.create_task(self._listen_for_messages())
 
-    async def _save_message(self, message):
-        async with self._semaphore:
-            time = message['T']
-            await redis_db.xadd(message['s'], {'t': time, 'p': message['p']}, id=f'{time}-*')
-
     async def _listen_for_messages(self):
         applogger.info('Listeting to incoming orders')
         async with self.socket_connection as stream:
             while self.running:
                 msg = await stream.recv()
                 self._loop.create_task(self.trader.handle_message(msg['data']))
-                self._loop.create_task(self._save_message(msg['data']))
 
     def stop_monitoring(self):
         if not self.running:

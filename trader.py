@@ -6,7 +6,7 @@ import ta
 from exchange import client
 from segment import Segment
 from common import logger
-from common.db import mongo_db, redis_db
+from common.db import mongo_db
 
 
 class RollingWindowDeque(deque):
@@ -18,7 +18,7 @@ class RollingWindowDeque(deque):
     def roll(self):
         if len(self) == 0:
             return
-        while self.condition(self[0]):
+        while self.condition(self[0], self[-1]):
             self.popleft()
 
 class PriceWindow:
@@ -75,7 +75,7 @@ class Trader:
 
         self.ema = {}
         self.trades = {}
-        condition = lambda x: time() - x[0] > 90
+        condition = lambda first, last: last[0] - first[0] > 90
         for s in self.symbols:
             self.ema[s] = {
                 'signal': RollingWindowDeque([], condition),
@@ -113,9 +113,9 @@ class Trader:
         asset['signal'].append(current_signal_ema)
         asset['struct'].append(current_struct_ema)
 
-    async def update_segment(self, message):
-        symbol = message['s']
+    async def update_segment(self, symbol):
         asset = self[symbol]
+        window = asset['window']
 
         if asset['segment']:
             if asset['signal'][-1][1] <= asset['struct'][-1][1]:
@@ -126,12 +126,13 @@ class Trader:
                         await logger.info(f'{symbol} has fallen by {checks["delta"]*100 :.2f}% - trying to buy it...')
                         await self.buy(symbol)
                 asset['segment'] = None
+            else:
+                asset['segment'].update_extremums(minp=window.min()[1], maxp=window.max()[1])
 
         elif asset['signal'][-1][1] > asset['struct'][-1][1]:
-            asset['segment'] = Segment(symbol, start=asset['struct'][-1][0])
+            asset['segment'] = Segment(symbol, minp=window.min()[1], maxp=window.max()[1], start=asset['struct'][-1][0])
 
-    async def update_trades(self, message):
-        symbol = message['s']
+    async def update_trades(self, symbol):
         if not self.trades.get(symbol):
             return
         
@@ -159,12 +160,12 @@ class Trader:
                 next_mean_price = (current_mean_price[0]+i, current_mean_price[1])
                 self.update_emas(symbol, next_max_price, next_mean_price)
                 
+            await self.update_segment(symbol)
+            await self.update_trades(symbol)
+
+            asset['window'] = PriceWindow((t0, p0))
             asset['signal'].roll()
             asset['struct'].roll()
-            asset['window'] = PriceWindow((t0, p0))
-
-            await self.update_segment(message)
-            await self.update_trades(message)
         
     async def handle_message(self, message):
         async with self._semaphore:
@@ -222,8 +223,7 @@ class EmulatorTrader(Trader):
 
         await mongo_db.trades.insert_one({
             'symbol': symbol,
-            **self.trades.pop(symbol),
-            'orders': [[int(order[b't'])/1000, float(order[b'p'])] for _, order in await redis_db.xrange(symbol)]
+            **self.trades.pop(symbol)
         })
 
         await logger.info(f'{symbol} trade data saved')
