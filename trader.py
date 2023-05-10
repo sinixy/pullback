@@ -123,13 +123,14 @@ class Trader:
 
         if asset['segment']:
             if asset['signal'][-1][1] <= asset['struct'][-1][1]:
+                segment = asset['segment']
+                asset['segment'] = None
                 if not self.trades.get(symbol):
-                    asset['segment'].end = asset['struct'][-1][0]
-                    should_buy, checks = await asset['segment'].should_buy(asset['struct'])
+                    segment.end = asset['struct'][-1][0]
+                    should_buy, checks = await segment.should_buy()
                     if should_buy:
                         await logger.info(f'{symbol} has fallen by {checks["delta"]*100 :.2f}% - trying to buy it...')
                         await self.buy(symbol)
-                asset['segment'] = None
             else:
                 asset['segment'].update_extremums(minp=window.min()[1], maxp=window.max()[1])
 
@@ -226,7 +227,7 @@ class EmulatorTrader(Trader):
         # emulating await submit trade
         await self._mark_price(symbol)
 
-        self.trades[symbol]['buy'] = {'time': time(), 'price': self[symbol]['segment'].max}
+        self.trades[symbol]['buy'] = {'time': time(), 'price': self[symbol]['struct'][-1][1]}
 
         await logger.info(f'{symbol} BUY {self.trades[symbol]["buy"]}')
 

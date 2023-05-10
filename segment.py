@@ -13,7 +13,7 @@ class Segment:
         if maxp > self.max:
             self.max = maxp
 
-    async def should_buy(self, struct_ema):
+    async def should_buy(self):
         if self.end == None:
             raise AssertionError(f'Undefined end of {self}')
         
