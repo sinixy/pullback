@@ -235,7 +235,7 @@ class EmulatorTrader(Trader):
         # emulating await submit trade
         await self._mark_price(symbol)
 
-        trade['sell'] = {'time': time(), 'price': self[symbol]['segment'].min}
+        trade['sell'] = {'time': time(), 'price': self[symbol]['struct'][-1][1]}
 
         await mongo_db.trades.insert_one({
             'symbol': symbol,
