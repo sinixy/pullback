@@ -16,13 +16,14 @@ class Segment:
     async def should_buy(self, struct_ema):
         if self.end == None:
             raise AssertionError(f'Undefined end of {self}')
-        length = self.end - self.start + 1
+        
+        length = self.end - self.start
         if length < 20 or length > 80:
             return False, {}
         
-        ema = [e for e in struct_ema if self.start <= e[0] <= self.end]
-        if ema[0][0] != self.start or ema[-1][0] != self.end:
-            raise AssertionError(f'Cannot fully retreive EMA for {self}. Current values: {ema[0]} - {ema[-1]}')
+        # ema = [e for e in struct_ema if self.start <= e[0] <= self.end]
+        # if ema[0][0] != self.start or ema[-1][0] != self.end:
+        #     raise AssertionError(f'Cannot fully retreive EMA for {self}. Current values: {ema[0]} - {ema[-1]}')
         
         price_delta = 1 - self.min / self.max
         if price_delta < 0.015:

@@ -52,14 +52,17 @@ class PriceWindow:
         else:
             return int(normalized_time) - int(self.normalized_values[0][0])
         
+    def _get_window_start(self):
+        return int(self.normalized_values[0][0]) * self.size / 1000
+        
     def max(self):
-        return int(self.normalized_values[0][0]), max([value[1] for value in self.values])
+        return self._get_window_start(), max([value[1] for value in self.values])
     
     def min(self):
-        return int(self.normalized_values[0][0]), min([value[1] for value in self.values])
+        return self._get_window_start(), min([value[1] for value in self.values])
     
     def mean(self):
-        return int(self.normalized_values[0][0]), sum([value[1] for value in self.values]) / len(self.values)
+        return self._get_window_start(), sum([value[1] for value in self.values]) / len(self.values)
 
     def __str__(self):
         return str(self.values)
@@ -67,8 +70,9 @@ class PriceWindow:
 
 class Trader:
 
-    def __init__(self, symbols, debug=False):
+    def __init__(self, symbols, window_size=1000, debug=False):
         self.symbols = symbols
+        self.window_size = window_size
         self.debug = debug
 
         self._semaphore = asyncio.Semaphore(128)
@@ -80,7 +84,7 @@ class Trader:
             self.ema[s] = {
                 'signal': RollingWindowDeque([], condition),
                 'struct': RollingWindowDeque([], condition),
-                'window': PriceWindow(),
+                'window': PriceWindow(size=self.window_size),
                 'segment': None
             }
 
@@ -104,11 +108,11 @@ class Trader:
         previous_struct_ema = asset['struct'][-1]
         current_signal_ema = (
             current_max_price[0],
-            ta.ema(previous_signal_ema[1], current_max_price[1], 12)
+            ta.ema(previous_signal_ema[1], current_max_price[1], 50)
         )
         current_struct_ema = (
             current_mean_price[0],
-            ta.ema(previous_struct_ema[1], current_mean_price[1], 2)
+            ta.ema(previous_struct_ema[1], current_mean_price[1], 4)
         )
         asset['signal'].append(current_signal_ema)
         asset['struct'].append(current_struct_ema)
@@ -136,12 +140,11 @@ class Trader:
         trade = self.trades.get(symbol)
         if not trade:
             return
-        if trade['status'] == 'SELLING':  # trying to avoid race condition
+        if trade['status'] == 'SELLING':
             return
         
         asset = self[symbol]
         if asset['signal'][-1][1] > asset['struct'][-1][1]:
-            trade['status'] = 'SELLING'
             await logger.info(f'{symbol} SIGNAL crossed over STRUCT - trying to sell it...')
             await self.sell(symbol)
 
@@ -160,14 +163,14 @@ class Trader:
             current_max_price = asset['window'].max()
             current_mean_price = asset['window'].mean()
             for i in range(difference):
-                next_max_price = (current_max_price[0]+i, current_max_price[1])
-                next_mean_price = (current_mean_price[0]+i, current_mean_price[1])
+                next_max_price = (current_max_price[0] + i*self.window_size/1000, current_max_price[1])
+                next_mean_price = (current_mean_price[0] + i*self.window_size/1000, current_mean_price[1])
                 self.update_emas(symbol, next_max_price, next_mean_price)
                 
             await self.update_segment(symbol)
             await self.update_trades(symbol)
 
-            asset['window'] = PriceWindow((t0, p0))
+            asset['window'] = PriceWindow((t0, p0), size=self.window_size)
             asset['signal'].roll()
             asset['struct'].roll()
         
@@ -207,25 +210,32 @@ class EmulatorTrader(Trader):
         return mark_price['time']/1000, float(mark_price['markPrice'])
 
     async def buy(self, symbol):
-        if self.trades.get(symbol) or len(self.trades.keys()) > 5:
+        if self.trades.get(symbol):
+            await logger.warning(symbol + ' has been already bought!')
+            return
+        if len(self.trades.keys()) > 5:
+            await logger.warning('Won\'t buy ' + symbol + ' - too many coins.')
             return
         
-        submit_time = time()
-        actual_time, price = await self._mark_price(symbol)
-
         self.trades[symbol] = {
-            'buy': {'submitTime': submit_time, 'actualTime': actual_time, 'price': price},
+            'buy': {},
             'sell': {},
             'status': 'ACTIVE'
         }
 
+        # await submit trade here
+
+        self.trades[symbol]['buy'] = {'time': time(), 'price': self[symbol]['segment'].max}
+
         await logger.info(f'{symbol} BUY {self.trades[symbol]["buy"]}')
 
     async def sell(self, symbol):
-        submit_time = time()
-        actual_time, price = await self._mark_price(symbol)
+        self.trades[symbol]['status'] = 'SELLING'
 
-        self.trades[symbol]['sell'] = {'submitTime': submit_time, 'actualTime': actual_time, 'price': price}
+         # await submit trade here
+
+        self.trades[symbol]['sell'] = {'time': time(), 'price': self[symbol]['segment'].min}
+
         await logger.info(f'{symbol} SELL {self.trades[symbol]["sell"]}')
 
         self.trades[symbol].pop('status')

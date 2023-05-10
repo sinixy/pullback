@@ -3,7 +3,7 @@ import asyncio
 import traceback
 
 from bot.bot import send_message
-from config import SYMBOLS
+from config import SYMBOLS, WINDOW_SIZE
 from common import applogger
 from market import MarketDataCollector
 from trader import EmulatorTrader
@@ -31,7 +31,7 @@ async def terminate(loop):
     await asyncio.sleep(3)
     loop.stop()
 
-def run(market: MarketDataCollector, loop):
+def run(market, loop):
     market.start_monitoring()
     loop.run_forever()
 
@@ -40,7 +40,7 @@ if __name__ == '__main__':
     loop = asyncio.get_event_loop()
     loop.set_exception_handler(handle_exception)
 
-    trader = EmulatorTrader(SYMBOLS)
+    trader = EmulatorTrader(SYMBOLS, window_size=WINDOW_SIZE)
     trader.init()
     market = MarketDataCollector(trader)
 
