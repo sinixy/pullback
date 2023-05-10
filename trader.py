@@ -140,13 +140,13 @@ class Trader:
         trade = self.trades.get(symbol)
         if not trade:
             return
-        if trade['status'] == 'SELLING':
-            return
         
         asset = self[symbol]
         if asset['signal'][-1][1] > asset['struct'][-1][1]:
+            # ejecting the trade before submitting it so a race condition won't occure
+            trade = self.trades.pop(symbol)
             await logger.info(f'{symbol} SIGNAL crossed over STRUCT - trying to sell it...')
-            await self.sell(symbol)
+            await self.sell(symbol, trade)
 
     async def _handle_message(self, message):
         symbol = message['s']
@@ -197,7 +197,7 @@ class BacktestTrader(Trader):
         time, price = self[symbol]['struct'][-1]
         self.trades[symbol] = {'buy': {'time': time, 'price': price}, 'sell': {}}
 
-    async def sell(self, symbol):
+    async def sell(self, symbol, trade):
         time, price = self[symbol]['struct'][-1]
         self.trades[symbol]['sell'] = {'time': time, 'price': price}
         await mongo_db.testTrades.insert_one({'symbol': symbol, **self.trades.pop(symbol)})
@@ -217,31 +217,28 @@ class EmulatorTrader(Trader):
             await logger.warning('Won\'t buy ' + symbol + ' - too many coins.')
             return
         
+        # setting dummy data for the symbol before submitting the trade so a race condition won't occure
         self.trades[symbol] = {
             'buy': {},
             'sell': {},
-            'status': 'ACTIVE'
         }
 
-        # await submit trade here
+        # emulating await submit trade
+        await self._mark_price(symbol)
 
         self.trades[symbol]['buy'] = {'time': time(), 'price': self[symbol]['segment'].max}
 
         await logger.info(f'{symbol} BUY {self.trades[symbol]["buy"]}')
 
-    async def sell(self, symbol):
-        self.trades[symbol]['status'] = 'SELLING'
+    async def sell(self, symbol, trade):
+        # emulating await submit trade
+        await self._mark_price(symbol)
 
-         # await submit trade here
+        trade['sell'] = {'time': time(), 'price': self[symbol]['segment'].min}
 
-        self.trades[symbol]['sell'] = {'time': time(), 'price': self[symbol]['segment'].min}
-
-        await logger.info(f'{symbol} SELL {self.trades[symbol]["sell"]}')
-
-        self.trades[symbol].pop('status')
         await mongo_db.trades.insert_one({
             'symbol': symbol,
-            **self.trades.pop(symbol)
+            **trade
         })
 
-        await logger.info(f'{symbol} trade data saved')
+        await logger.info(f'{symbol} SELL {trade["sell"]}')
