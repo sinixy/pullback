@@ -117,7 +117,7 @@ class Trader:
         asset['signal'].append(current_signal_ema)
         asset['struct'].append(current_struct_ema)
 
-    async def update_segment(self, symbol):
+    async def update_segment(self, symbol, ping):
         asset = self[symbol]
         window = asset['window']
 
@@ -130,14 +130,14 @@ class Trader:
                     should_buy, checks = await segment.should_buy()
                     if should_buy:
                         await logger.info(f'{symbol} has fallen by {checks["delta"]*100 :.2f}% - trying to buy it...')
-                        await self.buy(symbol)
+                        await self.buy(symbol, ping)
             else:
                 asset['segment'].update_extremums(minp=window.min()[1], maxp=window.max()[1])
 
         elif asset['signal'][-1][1] > asset['struct'][-1][1]:
             asset['segment'] = Segment(symbol, minp=window.min()[1], maxp=window.max()[1], start=asset['struct'][-1][0])
 
-    async def update_trades(self, symbol):
+    async def update_trades(self, symbol, ping):
         trade = self.trades.get(symbol)
         if not trade:
             return
@@ -147,7 +147,7 @@ class Trader:
             # ejecting the trade before submitting it so a race condition won't occure
             trade = self.trades.pop(symbol)
             await logger.info(f'{symbol} SIGNAL crossed over STRUCT - trying to sell it...')
-            await self.sell(symbol, trade)
+            await self.sell(symbol, trade, ping)
 
     async def _handle_message(self, message):
         symbol = message['s']
@@ -161,15 +161,16 @@ class Trader:
         # therefore we need to calculate additional (difference - 1) values for ema to ensure smoothness.
         # assuming that the price remained constant during the gap in order data.
         if difference:
+            ping = time() * 1000 - t0
             current_max_price = asset['window'].max()
             current_mean_price = asset['window'].mean()
             for i in range(difference):
                 next_max_price = (current_max_price[0] + i*self.window_size/1000, current_max_price[1])
                 next_mean_price = (current_mean_price[0] + i*self.window_size/1000, current_mean_price[1])
                 self.update_emas(symbol, next_max_price, next_mean_price)
-                
-            await self.update_segment(symbol)
-            await self.update_trades(symbol)
+
+            await self.update_segment(symbol, ping)
+            await self.update_trades(symbol, ping)
 
             asset['window'] = PriceWindow((t0, p0), size=self.window_size)
             asset['signal'].roll()
@@ -210,7 +211,7 @@ class EmulatorTrader(Trader):
         mark_price = await client.futures_mark_price(symbol=symbol)
         return mark_price['time']/1000, float(mark_price['markPrice'])
 
-    async def buy(self, symbol):
+    async def buy(self, symbol, ping):
         if self.trades.get(symbol):
             await logger.warning(symbol + ' has been already bought!')
             return
@@ -225,17 +226,19 @@ class EmulatorTrader(Trader):
         }
 
         # emulating await submit trade
+        sumbit_time = time()
         await self._mark_price(symbol)
 
-        self.trades[symbol]['buy'] = {'time': time(), 'price': self[symbol]['struct'][-1][1]}
+        self.trades[symbol]['buy'] = {'time': time(), 'submitTime': sumbit_time, 'price': self[symbol]['struct'][-1][1], 'ping': ping}
 
         await logger.info(f'{symbol} BUY {self.trades[symbol]["buy"]}')
 
-    async def sell(self, symbol, trade):
+    async def sell(self, symbol, trade, ping):
         # emulating await submit trade
+        sumbit_time = time()
         await self._mark_price(symbol)
 
-        trade['sell'] = {'time': time(), 'price': self[symbol]['struct'][-1][1]}
+        trade['sell'] = {'time': time(), 'submitTime': sumbit_time, 'price': self[symbol]['struct'][-1][1], 'ping': ping}
 
         await mongo_db.trades.insert_one({
             'symbol': symbol,
