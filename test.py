@@ -1,57 +1,59 @@
-from traceback import print_exc
+import json
 import asyncio
+from binance import AsyncClient, BinanceSocketManager
+from time import time
 
-from exchange import client, bm
-from common import applogger
-from bot.bot import send_message
+
+loop = asyncio.get_event_loop()
+client = loop.run_until_complete(AsyncClient.create())
+bm = BinanceSocketManager(client)
+
+conf = {}
+with open('config.json') as file:
+	conf = json.load(file)
 
 
 class MarketDataCollector:
 
-    def __init__(self, trader, loop=None):
-        self.trader = trader
+    def __init__(self, loop=None):
         self._loop = loop
 
         if not loop:
             self._loop = asyncio.get_event_loop()
 
         self.running = False
-        self.socket_connection = bm.futures_multiplex_socket([f'{s.lower()}@aggTrade' for s in self.trader.symbols])
+        self.socket_connection = bm.futures_multiplex_socket([f'{s.lower()}@aggTrade' for s in conf['symbols']])
 
     def start_monitoring(self):
-        applogger.info('Starting the monitoring process')
         self.running = True
         self._loop.create_task(self._listen_for_messages())
 
     async def _listen_for_messages(self):
-        applogger.info('Listeting to incoming orders')
         async with self.socket_connection as stream:
             while self.running:
                 msg = await stream.recv()
-                self._loop.create_task(self.trader.handle_message(msg['data']))
+                if msg['data']['s'] == 'MASKUSDT':
+                	print('Ping:', time()*1000 - msg['data']['T'])
 
     def stop_monitoring(self):
         if not self.running:
             return
         self.running = False
-        applogger.info('Monitoring process stopped')
         self._loop.create_task(self._close_connection())
 
     async def _close_connection(self):
         await client.close_connection()
-        applogger.info('Connection closed')
-    
+
 
 if __name__ == '__main__':
-    loop = asyncio.get_event_loop()
     market = MarketDataCollector(loop)
     try:
         market.start_monitoring()
+        loop.run_forever()
     except (KeyboardInterrupt, SystemExit):
         pass
     except Exception as e:
         print_exc()
-        loop.run_until_complete(send_message(f'⚠️ ERROR: {e}'))
     finally:
         print('Bye')
         market.stop_monitoring()
