@@ -69,8 +69,8 @@ class Symbol:
         try:
             await self._save_trade()
         except Exception as e:
-            await logger.error(f'Save trade error: {e}')
-            await ws.send_error(f'Save trade error: {e}')
+            await logger.error(f'Save {self.name} trade error: {e}')
+            await ws.send_error(f'Save {self.name} trade error: {e}')
             self.suspend()
         self._reset()
 
@@ -102,7 +102,7 @@ class Symbol:
             await asyncio.sleep(0.1)
             if time() - start > timeout:
                 if raise_error:
-                    raise Exception(f'Waiting for symbol status-{status} change timeouted')
+                    raise Exception(f'Waiting for {self.name} status-{status} change timeouted')
                 else:
                     return True
         return False
