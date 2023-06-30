@@ -1,11 +1,11 @@
 __pycache__
-tests
 logs
 _test.*
 .env
 *.txt
 *.pem
 *.ppk
+*.drawio
 .vscode
 market/target
 market/config.json

@@ -4,122 +4,113 @@ from time import time
 
 from common import logger
 from common.db import mongo_db
-from exchange import client
-from bot.bot import send_message
+from models import BuyRequest, SellRequest, Wallet, Symbol
+from models.enums import SymbolStatus
+from servers import ws
 
 
 class Trader:
 
-    def __init__(self):
-        self.trades = {}
+    def __init__(self, wallet: Wallet):
+        self.wallet = wallet
 
-    async def handle(self, message: dict):
+    async def handle_request(self, message: dict):
         try:
-            await self._handle(message)
+            await self._handle_request(message)
         except Exception as e:
             traceback.print_exc()
-            await send_message(f'Handling error: {e}')
-            await logger.critical(f'Handling error: {e}', exc_info=True)
+            await ws.send_error(f'handle_request error: {e}')
+            await logger.critical(f'handle_request error: {e}', exc_info=True)
+            self.wallet.suspend_trading()
 
-    async def _handle(self, message: dict):
+    async def _handle_request(self, message: dict):
         message_type = message.get('message')
-        message_data = message.get('data')
         timestamps = {
             'sent': message.get('time'),
             'received': time()
         }
         if message_type == 'BUY_REQUEST':
-            await self.buy(message_data, timestamps)
+            await self.handle_buy_request(BuyRequest.from_dict(message))
         elif message_type == 'SELL_REQUEST':
-            await self.sell(message_data, timestamps)
+            await self.handle_sell_request(SellRequest.from_dict(message))
 
-    async def buy(self, data: dict, timestamps: dict):
+    async def handle_buy_request(self, request: BuyRequest):
         pass
 
-    async def sell(self, data: dict, timestamps: dict):
+    async def handle_sell_request(self, request: SellRequest):
         pass
 
 
-class EmulatorTrader(Trader):
+class LiveTrader(Trader):
 
-    async def _mark_price(self, symbol):
-        mark_price = await client.futures_mark_price(symbol=symbol)
-        return mark_price['time']/1000, float(mark_price['markPrice'])
-
-    async def buy(self, data: dict, timestamps: dict):
-        symbol = data['symbol']
-        if self.trades.get(symbol):
-            await logger.warning(symbol + ' has been already bought!')
-            return
-        if len(self.trades.keys()) > 10:
-            await logger.warning('Won\'t buy ' + symbol + ' - too many coins.')
+    async def handle_buy_request(self, request: BuyRequest):
+        symbol = self.wallet[request.symbol]
+        if symbol.status == SymbolStatus.TRADING_SUSPENDED:
             return
 
-        trigger_point_time = data['buy']['triggerPoint']['time'] / 1000
-        now = time()
-        self.trades[symbol] = {
-            'buy': {
-                **data['buy'],
-                'delay': {
-                    'processing': timestamps['sent'] - trigger_point_time,
-                    'transmitting': timestamps['received'] - timestamps['sent'],
-                    'sending': now - timestamps['received'],
-                    'full': now - trigger_point_time
-                }
-            },
-            'sell': {},
-            'strategy': data['strategy']
-        }
+        if symbol.status != SymbolStatus.BUY_ALLOWED:
+            symbol.status = SymbolStatus.BLOCK_NEXT_SELL
+            await logger.warning(symbol.name + ' buy not allowed!')
+            return
+        if self.wallet.is_full():
+            symbol.status = SymbolStatus.BLOCK_NEXT_SELL
+            await logger.warning('Won\'t buy ' + symbol.name + ' - wallet is full.')
+            return
 
-        # emulating await submit trade
-        sumbit_time = time()
-        await self._mark_price(symbol)
+        response = await symbol.buy(request)
+        if response == 'OK':
+            await logger.info(f'{symbol.name} BUY')
+        else:
+            await ws.send_error(f'FAILED TO BUY {symbol.name}: {response}')
+            await logger.info(f'FAILED TO BUY {symbol.name}: {response}')
+            symbol.suspend()
 
-        self.trades[symbol]['buy']['ping'] = time() - sumbit_time
+    async def handle_sell_request(self, request: SellRequest):
+        symbol = self.wallet[request.symbol]
+        if symbol.status == SymbolStatus.TRADING_SUSPENDED:
+            return
+        if symbol.status == SymbolStatus.BLOCK_NEXT_SELL:
+            symbol.status = SymbolStatus.BUY_ALLOWED
+            return
 
-        await logger.info(f'{symbol} BUY {self.trades[symbol]["buy"]}')
+        buy_status = await self._confirm_buy(symbol)
+        if buy_status != 'OK':
+            await logger.info(f'CANNOT CONFIRM BUY FOR {symbol.name}: {buy_status}')
+            await ws.send_error(f'CANNOT CONFIRM BUY FOR {symbol.name}: {buy_status}')
+            symbol.suspend()
+            return
 
-    async def sell(self, data: dict, timestamps: dict):
-        symbol = data.pop('symbol')
+        response = await symbol.sell(request)
+        if response == 'OK':
+            await logger.info(f'{symbol.name} SELL')
+        else:
+            await logger.info(f'FAILED TO SELL {symbol.name}: {response}')
+            await ws.send_error(f'FAILED TO SELL {symbol.name}: {response}')
 
+    async def _confirm_buy(self, symbol: Symbol) -> bool:
+        submission_timeouted = await self._wait_for_buy_submission(symbol)
+        if submission_timeouted:
+            return 'SUBMISSION_TIMEOUT'
+        
+        fill_timeouted = await self._wait_for_buy_fill(symbol)
+        if fill_timeouted:
+            return 'FILL_TIMEOUT'
+        
+        if symbol.status == SymbolStatus.SELL_ALLOWED:
+            return 'OK'
+        else:
+            return f'UNEXPECTED_SYMBOL_STATUS_{symbol.status}'
+        
+    async def _wait_for_symbol_status_change(self, symbol, status, timeout=5) -> bool:
         start = time()
-        while not self.trades.get(symbol):
-            await logger.info(f'Waiting for {symbol} to sell...')
+        while symbol.status == status:
             await asyncio.sleep(0.1)
-            if time() - start > 5:
-                await logger.info(f'{symbol} sell timeouted - no trade')
-                return
-        trade = self.trades[symbol]
-        while not trade['buy'].get('ping'):
-            await logger.info(f'Waiting for {symbol} confirmation to sell...')
-            await asyncio.sleep(0.1)
-            if time() - start > 10:
-                await logger.info(f'{symbol} sell timeouted - no confirmation')
-                del self.trades[symbol]
-                return
-            
-        trigger_point_time = data['triggerPoint']['time'] / 1000
-        now = time()
-        trade['sell'] = {
-            **data,
-            'delay': {
-                'processing': timestamps['sent'] - trigger_point_time,
-                'transmitting': timestamps['received'] - timestamps['sent'],
-                'sending': now - timestamps['received'],
-                'full': now - trigger_point_time
-            }
-        }
-            
-        # emulating await submit trade
-        sumbit_time = time()
-        await self._mark_price(symbol)
-
-        trade['sell']['ping'] = time() - sumbit_time
-
-        await mongo_db.trades.insert_one({
-            'symbol': symbol,
-            **trade
-        })
-
-        del self.trades[symbol]
-        await logger.info(f'{symbol} SELL {trade["sell"]}')
+            if time() - start > timeout:
+                return True
+        return False
+    
+    async def _wait_for_buy_submission(self, symbol: Symbol) -> bool:
+        return await self._wait_for_symbol_status_change(symbol, SymbolStatus.SUBMITTING_BUY_ORDER)
+    
+    async def _wait_for_buy_fill(self, symbol: Symbol) -> bool:
+        return await self._wait_for_symbol_status_change(symbol, SymbolStatus.WAITING_FOR_BUY_ORDER_FILL)

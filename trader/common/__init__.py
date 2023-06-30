@@ -3,6 +3,7 @@ from aiologger.levels import LogLevel
 from aiologger.handlers.files import AsyncFileHandler
 from aiologger.formatters.base import Formatter
 
+from common.exchange import Exchange
 import logging
 
 
@@ -18,3 +19,5 @@ logging.basicConfig(
     datefmt='%Y-%m-%d_%H:%M:%S'
 )
 applogger = logging.getLogger('APPLICATION')
+
+banana = Exchange()

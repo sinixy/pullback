@@ -1,0 +1,22 @@
+class SymbolStatus:
+    TRADING_SUSPENDED = 0
+
+    BUY_ALLOWED = 1
+    SELL_ALLOWED = 2
+
+    SUBMITTING_BUY_ORDER = 3
+    SUBMITTING_SELL_ORDER = 4
+
+    WAITING_FOR_BUY_ORDER_FILL = 5
+    WAITING_FOR_SELL_ORDER_FILL = 6
+
+    BLOCK_NEXT_SELL = 7
+
+
+class OrderStatus:
+    NEW = 'NEW'
+    FILLED = 'FILLED'
+
+
+class UserDataEvent:
+    ORDER_TRADE_UPDATE = 'ORDER_TRADE_UPDATE'

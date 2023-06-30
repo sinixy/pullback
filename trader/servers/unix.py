@@ -3,10 +3,9 @@ import traceback
 import json
 
 from common import applogger
-from bot.bot import send_message
 
 
-class Server:
+class UnixServer:
 
     def __init__(self, socket_address, trader, loop = None):
         self.socket_address = socket_address
@@ -25,7 +24,6 @@ class Server:
             await asyncio.start_unix_server(self._listen, self.socket_address)
         except Exception as e:
             traceback.print_exc()
-            await send_message(f'UNIX server error: {e}')
             applogger.critical(f'UNIX server error: {e}', exc_info=True)
 
 
@@ -34,4 +32,4 @@ class Server:
             data = await reader.readline()
             message = data.decode().strip()
             if message:
-                self._loop.create_task(self.trader.handle(json.loads(message)))
+                self._loop.create_task(self.trader.handle_request(json.loads(message)))
