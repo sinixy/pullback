@@ -104,16 +104,16 @@ class Symbol:
             return False
     
     async def wait_for_buy_submission(self, raise_error=False) -> bool:
-        return await self._wait_for_symbol_status_change(SymbolStatus.SUBMITTING_BUY_ORDER, raise_error)
+        return await self._wait_for_symbol_status_change(SymbolStatus.SUBMITTING_BUY_ORDER, raise_error=raise_error)
     
     async def wait_for_buy_fill(self, raise_error=False) -> bool:
-        return await self._wait_for_symbol_status_change(SymbolStatus.WAITING_FOR_BUY_ORDER_FILL, raise_error)
+        return await self._wait_for_symbol_status_change(SymbolStatus.WAITING_FOR_BUY_ORDER_FILL, raise_error=raise_error)
     
     async def wait_for_sell_submission(self, raise_error=False) -> bool:
-        return await self._wait_for_symbol_status_change(SymbolStatus.SUBMITTING_SELL_ORDER, raise_error)
+        return await self._wait_for_symbol_status_change(SymbolStatus.SUBMITTING_SELL_ORDER, raise_error=raise_error)
     
     async def wait_for_sell_fill(self, raise_error=False) -> bool:
-        return await self._wait_for_symbol_status_change(SymbolStatus.WAITING_FOR_SELL_ORDER_FILL, raise_error)
+        return await self._wait_for_symbol_status_change(SymbolStatus.WAITING_FOR_SELL_ORDER_FILL, raise_error=raise_error)
     
     async def watch_buy_submission_timeout(self):
         await logger.info(f'Watching {self.name} buy submission') 
