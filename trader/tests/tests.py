@@ -63,15 +63,27 @@ async def test_single(client: TestClient, symbol: str, duration: int):
 async def test_single_short(client: TestClient, symbol: str):
     await test_single(client, symbol, 200)
 
+async def test_multiple(client, loop, data):
+    for symbol, duration in data:
+        loop.create_task(test_single(client, symbol, duration))
+        await asyncio.sleep(max(0.2, random.random()))
 
-async def main():
+async def main(loop):
     await banana.init(TESTNET_BINANCE_API_KEY, TESTNET_BINANCE_API_SECRET, True)
     client = TestClient(UNIX_SOCKET_ADDRESS)
     await client.start()
     
-    print('Testing single short ADAUSDT')
-    await test_single_short(client, 'ADAUSDT')
+    symbols = random.choices(SYMBOLS, k=8)
+    data = []
+    for s in symbols:
+        if random.random() < 0.4:
+            data.append((s, 200))
+        else:
+            data.append((s, 5000))
+    print('Testing', data)
+    await test_multiple(client, loop, data)
 
 def run():
     loop = asyncio.get_event_loop()
-    loop.run_until_complete(main())
+    loop.create_task(main(loop))
+    loop.run_forever()
