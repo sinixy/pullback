@@ -1,26 +1,32 @@
-from binance import enums
 from typing import Dict
+from time import time
 import traceback
+import asyncio
 
-from common import banana
+from common import banana, logger
 from models.request import Request, BuyRequest, SellRequest
 from models.order import Order, BuyOrder, SellOrder
 from models.enums import SymbolStatus
 from common.db import mongo_db
-from config import MARGIN_SIZE, LEVERAGE
+from servers import ws
 
 
 class Symbol:
     
-    def __init__(self, name: str):
+    def __init__(self, name: str, loop=None):
         self.name = name
         self.status = SymbolStatus.BUY_ALLOWED
         self.precision: int = None
         self.requests: Dict[str, Request] = {'buy': None, 'sell': None}
         self.orders: Dict[str, Order] = {'buy': None, 'sell': None}
 
+        self._loop: asyncio.BaseEventLoop = loop
+        if not self._loop:
+            self._loop = asyncio.get_event_loop()
+
     async def buy(self, request: BuyRequest) -> str:
         self.status = SymbolStatus.SUBMITTING_BUY_ORDER
+        self._loop.create_task(self.watch_buy_submission_timeout())
 
         try:
             await banana.submit_buy_market_order(self.name, price=request.trigger.price, precision=self.precision)
@@ -35,6 +41,7 @@ class Symbol:
     
     async def sell(self, request: SellRequest) -> str:
         self.status = SymbolStatus.SUBMITTING_SELL_ORDER
+        self._loop.create_task(self.watch_sell_submission_timeout())
 
         try:
             await banana.submit_sell_market_order(self.name, quantity=self.orders['buy'].quantity, precision=self.precision)
@@ -78,3 +85,42 @@ class Symbol:
 
     def suspend(self):
         self.status = SymbolStatus.TRADING_SUSPENDED
+
+    async def _wait_for_symbol_status_change(self, status, timeout=5, raise_error=False) -> bool:
+        start = time()
+        while self.status == status:
+            await asyncio.sleep(0.1)
+            if time() - start > timeout:
+                return True
+        if raise_error:
+            raise Exception(f'Waiting for symbol status-{status} change timeouted')
+        else:
+            return False
+    
+    async def wait_for_buy_submission(self, raise_error=False) -> bool:
+        return await self._wait_for_symbol_status_change(SymbolStatus.SUBMITTING_BUY_ORDER, raise_error)
+    
+    async def wait_for_buy_fill(self, raise_error=False) -> bool:
+        return await self._wait_for_symbol_status_change(SymbolStatus.WAITING_FOR_BUY_ORDER_FILL, raise_error)
+    
+    async def wait_for_sell_submission(self, raise_error=False) -> bool:
+        return await self._wait_for_symbol_status_change(SymbolStatus.SUBMITTING_SELL_ORDER, raise_error)
+    
+    async def wait_for_sell_fill(self, raise_error=False) -> bool:
+        return await self._wait_for_symbol_status_change(SymbolStatus.WAITING_FOR_SELL_ORDER_FILL, raise_error)
+    
+    async def watch_buy_submission_timeout(self):
+        try:
+            await self.wait_for_buy_submission(True)
+        except Exception as e:
+            await logger.error(f'{self.name} BUY SUBMISSION TIMEOUTED')
+            await ws.send_error(f'{self.name} BUY SUBMISSION TIMEOUTED')
+            self.suspend()
+
+    async def watch_sell_submission_timeout(self):
+        try:
+            await self.wait_for_sell_submission(True)
+        except Exception as e:
+            await logger.error(f'{self.name} SELL SUBMISSION TIMEOUTED')
+            await ws.send_error(f'{self.name} SELL SUBMISSION TIMEOUTED')
+            self.suspend()

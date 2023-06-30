@@ -88,11 +88,11 @@ class LiveTrader(Trader):
             await ws.send_error(f'FAILED TO SELL {symbol.name}: {response}')
 
     async def _confirm_buy(self, symbol: Symbol) -> bool:
-        submission_timeouted = await self._wait_for_buy_submission(symbol)
+        submission_timeouted = await symbol.wait_for_buy_submission(symbol)
         if submission_timeouted:
             return 'SUBMISSION_TIMEOUT'
         
-        fill_timeouted = await self._wait_for_buy_fill(symbol)
+        fill_timeouted = await symbol.wait_for_buy_fill(symbol)
         if fill_timeouted:
             return 'FILL_TIMEOUT'
         
@@ -100,17 +100,3 @@ class LiveTrader(Trader):
             return 'OK'
         else:
             return f'UNEXPECTED_SYMBOL_STATUS_{symbol.status}'
-        
-    async def _wait_for_symbol_status_change(self, symbol, status, timeout=5) -> bool:
-        start = time()
-        while symbol.status == status:
-            await asyncio.sleep(0.1)
-            if time() - start > timeout:
-                return True
-        return False
-    
-    async def _wait_for_buy_submission(self, symbol: Symbol) -> bool:
-        return await self._wait_for_symbol_status_change(symbol, SymbolStatus.SUBMITTING_BUY_ORDER)
-    
-    async def _wait_for_buy_fill(self, symbol: Symbol) -> bool:
-        return await self._wait_for_symbol_status_change(symbol, SymbolStatus.WAITING_FOR_BUY_ORDER_FILL)
