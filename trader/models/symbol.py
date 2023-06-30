@@ -97,11 +97,11 @@ class Symbol:
         while self.status == status:
             await asyncio.sleep(0.1)
             if time() - start > timeout:
-                return True
-        if raise_error:
-            raise Exception(f'Waiting for symbol status-{status} change timeouted')
-        else:
-            return False
+                if raise_error:
+                    raise Exception(f'Waiting for symbol status-{status} change timeouted')
+                else:
+                    return True
+        return False
     
     async def wait_for_buy_submission(self, raise_error=False) -> bool:
         return await self._wait_for_symbol_status_change(SymbolStatus.SUBMITTING_BUY_ORDER, raise_error=raise_error)
@@ -116,7 +116,7 @@ class Symbol:
         return await self._wait_for_symbol_status_change(SymbolStatus.WAITING_FOR_SELL_ORDER_FILL, raise_error=raise_error)
     
     async def watch_buy_submission_timeout(self):
-        await logger.info(f'Watching {self.name} buy submission') 
+        await logger.info(f'Watching {self.name} buy submission')
         try:
             await self.wait_for_buy_submission(True)
         except Exception as e:
