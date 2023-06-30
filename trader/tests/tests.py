@@ -53,14 +53,15 @@ async def generate_trade(symbol, duration):
     return buy_request, sell_request
 
 
-async def test_single(client: TestClient):
-    duration = 5000
-    buy, sell = await generate_trade('ADAUSDT', duration)
+async def test_single(client: TestClient, symbol: str, duration: int):
+    buy, sell = await generate_trade(symbol, duration)
 
     await client.send(json.dumps(buy))
     await asyncio.sleep(duration / 1000)
     await client.send(json.dumps(sell))
 
+async def test_single_short(client: TestClient, symbol: str):
+    await test_single(client, symbol, 200)
 
 
 async def main():
@@ -68,7 +69,8 @@ async def main():
     client = TestClient(UNIX_SOCKET_ADDRESS)
     await client.start()
     
-    await test_single(client)
+    print('Testing single short ADAUSDT')
+    await test_single_short(client, 'ADAUSDT')
 
 def run():
     loop = asyncio.get_event_loop()
