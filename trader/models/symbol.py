@@ -25,6 +25,7 @@ class Symbol:
             self._loop = asyncio.get_event_loop()
 
     async def buy(self, request: BuyRequest) -> str:
+        self.requests['buy'] = request
         self.status = SymbolStatus.SUBMITTING_BUY_ORDER
         self._loop.create_task(self.watch_buy_submission_timeout())
 
@@ -34,12 +35,12 @@ class Symbol:
             traceback.print_exc()
             return str(e)
         
-        self.requests['buy'] = request
         self.status = SymbolStatus.WAITING_FOR_BUY_ORDER_FILL
 
         return 'OK'
     
     async def sell(self, request: SellRequest) -> str:
+        self.requests['sell'] = request
         self.status = SymbolStatus.SUBMITTING_SELL_ORDER
         self._loop.create_task(self.watch_sell_submission_timeout())
 
@@ -49,7 +50,6 @@ class Symbol:
             traceback.print_exc()
             return str(e)
         
-        self.requests['sell'] = request
         self.status = SymbolStatus.WAITING_FOR_SELL_ORDER_FILL
 
         return 'OK'
@@ -62,7 +62,12 @@ class Symbol:
     async def set_filled_sell(self, order: SellOrder):
         self.orders['sell'] = order
         self.status = SymbolStatus.BUY_ALLOWED
-        await self._save_trade()
+        try:
+            await self._save_trade()
+        except Exception as e:
+            await logger.error(f'Save trade error: {e}')
+            await ws.send_error(f'Save trade error: {e}')
+            self.suspend()
         self._reset()
 
     async def _save_trade(self):
@@ -85,6 +90,7 @@ class Symbol:
 
     def suspend(self):
         self.status = SymbolStatus.TRADING_SUSPENDED
+        self._reset()
 
     async def _wait_for_symbol_status_change(self, status, timeout=5, raise_error=False) -> bool:
         start = time()
@@ -110,6 +116,7 @@ class Symbol:
         return await self._wait_for_symbol_status_change(SymbolStatus.WAITING_FOR_SELL_ORDER_FILL, raise_error)
     
     async def watch_buy_submission_timeout(self):
+        await logger.info(f'Watching {self.name} buy submission') 
         try:
             await self.wait_for_buy_submission(True)
         except Exception as e:
@@ -118,6 +125,7 @@ class Symbol:
             self.suspend()
 
     async def watch_sell_submission_timeout(self):
+        await logger.info(f'Watching {self.name} sell submission') 
         try:
             await self.wait_for_sell_submission(True)
         except Exception as e:
