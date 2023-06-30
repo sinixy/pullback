@@ -15,21 +15,25 @@ class UnixServer:
         if not loop:
             self._loop = asyncio.get_event_loop()
 
-        self.running = False
+        self.connected = False
 
     async def run(self):
         applogger.info('Starting the server')
-        self.running = True
         try:
-            await asyncio.start_unix_server(self._listen, self.socket_address)
+            await asyncio.start_unix_server(self._serve, self.socket_address)
         except Exception as e:
             traceback.print_exc()
             applogger.critical(f'UNIX server error: {e}', exc_info=True)
 
 
-    async def _listen(self, reader, writer):
-        while True:
+    async def _serve(self, reader, writer):
+        print('Market connected!')
+        self.connected = True
+        while self.connected:
             data = await reader.readline()
             message = data.decode().strip()
             if message:
                 self._loop.create_task(self.trader.handle_request(json.loads(message)))
+            else:
+                print('Market disconnected!')
+                self.connected = False

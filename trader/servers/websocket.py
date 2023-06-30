@@ -10,23 +10,27 @@ class WebsocketServer:
         self.host = host
         self.port = port
 
-        self.running = False
+        self.connected = False
         self.connections: List[Tuple[asyncio.StreamReader, asyncio.StreamWriter]] = []
 
     async def run(self):
-        self.running = True
         try:
             await asyncio.start_server(self._serve, self.host, self.port)
         except Exception as e:
             traceback.print_exc()
 
     async def _serve(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
-        print('New connection!')
+        print('Manasan connected!')
+        self.connected = True
         self.connections.append((reader, writer))
-        while self.running:
+        while self.connected:
             data = await reader.readline()
             message = data.decode().strip()
-            print(message)
+            if message:
+                print(message)
+            else:
+                print('Manasan disconnected!')
+                self.connected = False
 
     async def send_error(self, error: str):
         await self._send(json.dumps({'message': 'ERROR', 'error': error}))
@@ -42,6 +46,9 @@ class WebsocketServer:
         await self._send(json.dumps({'message': message}))
 
     async def _send(self, message: str):
+        if not self.connected:
+            return
+        
         if not message.endswith('\n'):
             message += '\n'
 
@@ -55,8 +62,8 @@ class WebsocketServer:
             await asyncio.sleep(2)
 
     async def close(self):
-        self.running = False
         await self.send_message('CLOSE')
+        self.connected = False
         for con in self.connections:
             con[1].close()
             await con[1].wait_closed()
