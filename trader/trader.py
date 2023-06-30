@@ -60,6 +60,10 @@ class LiveTrader(Trader):
         response = await symbol.buy(request)
         if response == 'OK':
             await logger.info(f'{symbol.name} BUY')
+        elif response == 'NO_LIQUIDITY':
+            await ws.send_error(f'No liquidity for buy in {symbol.name}')
+            await logger.info(f'No liquidity for buy in {symbol.name}')
+            symbol.suspend()
         else:
             await ws.send_error(f'FAILED TO BUY {symbol.name}: {response}')
             await logger.info(f'FAILED TO BUY {symbol.name}: {response}')
@@ -83,6 +87,10 @@ class LiveTrader(Trader):
         response = await symbol.sell(request)
         if response == 'OK':
             await logger.info(f'{symbol.name} SELL')
+        elif response == 'NO_LIQUIDITY':
+            await ws.send_error(f'No liquidity for sell in {symbol.name}')
+            await logger.info(f'No liquidity for sell in {symbol.name}')
+            symbol.suspend()
         else:
             await logger.info(f'FAILED TO SELL {symbol.name}: {response}')
             await ws.send_error(f'FAILED TO SELL {symbol.name}: {response}')

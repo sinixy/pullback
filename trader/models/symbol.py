@@ -32,6 +32,8 @@ class Symbol:
         try:
             await banana.submit_buy_market_order(self.name, price=request.trigger.price, precision=self.precision)
         except Exception as e:
+            if e.code == -4131:
+                return 'NO_LIQUIDITY'
             traceback.print_exc()
             return str(e)
         
@@ -47,6 +49,8 @@ class Symbol:
         try:
             await banana.submit_sell_market_order(self.name, quantity=self.orders['buy'].quantity, precision=self.precision)
         except Exception as e:
+            if e.code == -4131:
+                return 'NO_LIQUIDITY'
             traceback.print_exc()
             return str(e)
         
