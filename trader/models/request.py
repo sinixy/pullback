@@ -100,6 +100,9 @@ class BuyRequest(Request):
             },
             'strategy': self.strategy_info
         }
+    
+    def __str__(self):
+        return f'BuyRequest(symbol={self.symbol}, time={self.request_time})'
 
 
 class SellRequest(Request):
@@ -154,3 +157,6 @@ class SellRequest(Request):
                 'price': self.trigger.price
             }
         }
+    
+    def __str__(self):
+        return f'SellRequest(symbol={self.symbol}, time={self.request_time})'

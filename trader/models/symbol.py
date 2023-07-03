@@ -1,14 +1,20 @@
 from typing import Dict
 from time import time
-import traceback
 import asyncio
 
-from common import banana, logger
+from common import banana
 from models.request import Request, BuyRequest, SellRequest
 from models.order import Order, BuyOrder, SellOrder
 from models.enums import SymbolStatus
 from common.db import mongo_db
-from servers import ws
+from exceptions.handlers import SymbolHandler
+from exceptions import (
+    SaveTradeException,
+    ChangeStatusTimeoutException,
+    UnconfirmedBuyException,
+    UnexpectedSymbolStatusException,
+    SubmissionTimeoutException
+)
 
 
 class Symbol:
@@ -24,39 +30,53 @@ class Symbol:
         if not self._loop:
             self._loop = asyncio.get_event_loop()
 
-    async def buy(self, request: BuyRequest) -> str:
+        self.exceptions_handler = SymbolHandler(self)
+
+    async def buy(self, request: BuyRequest):
+        try:
+            await self._buy(request)
+        except Exception as e:
+            await self.exceptions_handler.handle(e)
+
+    async def _buy(self, request: BuyRequest):
         self.requests['buy'] = request
         self.status = SymbolStatus.SUBMITTING_BUY_ORDER
         self._loop.create_task(self.watch_buy_submission_timeout())
 
-        try:
-            await banana.submit_buy_market_order(self.name, price=request.trigger.price, precision=self.precision)
-        except Exception as e:
-            if e.code == -4131:
-                return 'NO_LIQUIDITY'
-            traceback.print_exc()
-            return str(e)
+        await banana.submit_buy_market_order(self.name, price=request.trigger.price, precision=self.precision)
         
         self.status = SymbolStatus.WAITING_FOR_BUY_ORDER_FILL
 
-        return 'OK'
+    async def sell(self, request: SellRequest):
+        try:
+            await self._sell(request)
+        except Exception as e:
+            await self.exceptions_handler.handle(e)
     
-    async def sell(self, request: SellRequest) -> str:
+    async def _sell(self, request: SellRequest) -> str:
         self.requests['sell'] = request
         self.status = SymbolStatus.SUBMITTING_SELL_ORDER
         self._loop.create_task(self.watch_sell_submission_timeout())
 
-        try:
-            await banana.submit_sell_market_order(self.name, quantity=self.orders['buy'].quantity, precision=self.precision)
-        except Exception as e:
-            if e.code == -4131:
-                return 'NO_LIQUIDITY'
-            traceback.print_exc()
-            return str(e)
+        await banana.submit_sell_market_order(self.name, quantity=self.orders['buy'].quantity, precision=self.precision)
         
         self.status = SymbolStatus.WAITING_FOR_SELL_ORDER_FILL
+    
+    async def confirm_buy(self) -> bool:
+        try:
+            await self._confirm_buy()
+        except Exception as e:
+            await self.exceptions_handler.handle(UnconfirmedBuyException(e))
+            return False
+        return True
 
-        return 'OK'
+    async def _confirm_buy(self):
+        await self.wait_for_buy_submission()
+        
+        await self.wait_for_buy_fill()
+        
+        if self.status != SymbolStatus.SELL_ALLOWED:
+            raise UnexpectedSymbolStatusException(self.status)
     
     async def set_filled_buy(self, order: BuyOrder):
         # it doesn't needs to be async (for now) but im doing it for consistency with set_filled_sell
@@ -69,9 +89,7 @@ class Symbol:
         try:
             await self._save_trade()
         except Exception as e:
-            await logger.error(f'Save {self.name} trade error: {e}')
-            await ws.send_error(f'Save {self.name} trade error: {e}')
-            self.suspend()
+            self.exceptions_handler.handle(SaveTradeException(e))
         self._reset()
 
     async def _save_trade(self):
@@ -96,43 +114,34 @@ class Symbol:
         self.status = SymbolStatus.TRADING_SUSPENDED
         self._reset()
 
-    async def _wait_for_symbol_status_change(self, status, timeout=5, raise_error=False) -> bool:
+    async def _wait_for_symbol_status_change(self, status, timeout=5):
         start = time()
         while self.status == status:
             await asyncio.sleep(0.1)
             if time() - start > timeout:
-                if raise_error:
-                    raise Exception(f'Waiting for {self.name} status-{status} change timeouted')
-                else:
-                    return True
-        return False
+                raise ChangeStatusTimeoutException(status, timeout)
     
-    async def wait_for_buy_submission(self, raise_error=False) -> bool:
-        return await self._wait_for_symbol_status_change(SymbolStatus.SUBMITTING_BUY_ORDER, raise_error=raise_error)
+    async def wait_for_buy_submission(self):
+        return await self._wait_for_symbol_status_change(SymbolStatus.SUBMITTING_BUY_ORDER)
     
-    async def wait_for_buy_fill(self, raise_error=False) -> bool:
-        return await self._wait_for_symbol_status_change(SymbolStatus.WAITING_FOR_BUY_ORDER_FILL, raise_error=raise_error)
+    async def wait_for_buy_fill(self):
+        return await self._wait_for_symbol_status_change(SymbolStatus.WAITING_FOR_BUY_ORDER_FILL)
     
-    async def wait_for_sell_submission(self, raise_error=False) -> bool:
-        return await self._wait_for_symbol_status_change(SymbolStatus.SUBMITTING_SELL_ORDER, raise_error=raise_error)
+    async def wait_for_sell_submission(self):
+        return await self._wait_for_symbol_status_change(SymbolStatus.SUBMITTING_SELL_ORDER)
     
-    async def wait_for_sell_fill(self, raise_error=False) -> bool:
-        return await self._wait_for_symbol_status_change(SymbolStatus.WAITING_FOR_SELL_ORDER_FILL, raise_error=raise_error)
+    async def wait_for_sell_fill(self):
+        return await self._wait_for_symbol_status_change(SymbolStatus.WAITING_FOR_SELL_ORDER_FILL)
     
     async def watch_buy_submission_timeout(self):
-        await logger.info(f'Watching {self.name} buy submission')
+        # "watches" are supposed to be run as tasks unlike the "waits"
         try:
-            await self.wait_for_buy_submission(True)
+            await self.wait_for_buy_submission()
         except Exception as e:
-            await logger.error(f'{self.name} BUY SUBMISSION TIMEOUTED')
-            await ws.send_error(f'{self.name} BUY SUBMISSION TIMEOUTED')
-            self.suspend()
+            await self.exceptions_handler.handle(SubmissionTimeoutException('BUY', e))
 
     async def watch_sell_submission_timeout(self):
-        await logger.info(f'Watching {self.name} sell submission') 
         try:
-            await self.wait_for_sell_submission(True)
+            await self.wait_for_sell_submission()
         except Exception as e:
-            await logger.error(f'{self.name} SELL SUBMISSION TIMEOUTED')
-            await ws.send_error(f'{self.name} SELL SUBMISSION TIMEOUTED')
-            self.suspend()
+            await self.exceptions_handler.handle(SubmissionTimeoutException('SELL', e))
