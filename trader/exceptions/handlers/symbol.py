@@ -1,13 +1,12 @@
 from exceptions.handlers.handler import Handler
 from exceptions.exceptions import SaveTradeException, ChangeStatusTimeoutException, UnconfirmedBuyException, SubmissionTimeoutException
-import models
 
 from binance.exceptions import BinanceAPIException
 
 
 class SymbolHandler(Handler):
 
-    def __init__(self, symbol: models.Symbol):
+    def __init__(self, symbol):
         super().__init__()
         self.symbol = symbol
 

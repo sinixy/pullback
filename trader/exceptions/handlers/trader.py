@@ -1,10 +1,9 @@
 from exceptions.handlers.handler import Handler
-import trader.trader as trader
 
 
 class TraderHandler(Handler):
 
-    def __init__(self, trader: trader.Trader):
+    def __init__(self, trader):
         super().__init__()
         self.trader = trader
 
