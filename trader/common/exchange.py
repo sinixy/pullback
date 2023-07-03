@@ -1,4 +1,5 @@
-from binance import AsyncClient, BinanceSocketManager, exceptions, enums
+from binance import AsyncClient, BinanceSocketManager, enums
+from binance.exceptions import BinanceAPIException
 
 from config import MARGIN_SIZE, LEVERAGE, SYMBOLS_EXCHANGE_INITIALIZATION
 
@@ -34,7 +35,7 @@ class Exchange:
     async def set_margin_type(self, symbol, margin_type='ISOLATED'):
         try:
             await self.client.futures_change_margin_type(symbol=symbol, marginType=margin_type)
-        except exceptions.BinanceAPIException as e:
+        except BinanceAPIException as e:
             if e.code == -4046:
                 return
             raise e

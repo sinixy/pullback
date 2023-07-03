@@ -1,20 +1,28 @@
 import asyncio
-import traceback
 
 from config import MODE, UNIX_SOCKET_ADDRESS, SYMBOLS, BINANCE_API_KEY, BINANCE_API_SECRET, TESTNET_BINANCE_API_KEY, TESTNET_BINANCE_API_SECRET
 from servers import ws
-from common import applogger, banana
+from common import banana
+from exceptions import ExchangeInitializationException, WalletInitializationException
+from exceptions.handlers import ControllerHanlder
 
 
 def run(loop: asyncio.BaseEventLoop):
     api_key, api_secret, testnet = TESTNET_BINANCE_API_KEY, TESTNET_BINANCE_API_SECRET, True
     if MODE == 'REAL':
         api_key, api_secret, testnet = BINANCE_API_KEY, BINANCE_API_SECRET, False
-    loop.run_until_complete(banana.init(api_key, api_secret, testnet))
+
+    try:
+        loop.run_until_complete(banana.init(api_key, api_secret, testnet))
+    except Exception as e:
+        raise ExchangeInitializationException(e)
 
     from models import Wallet
     wallet = Wallet(SYMBOLS)
-    loop.run_until_complete(wallet.init())
+    try:
+        loop.run_until_complete(wallet.init())
+    except Exception as e:
+        raise WalletInitializationException(e)
 
     loop.create_task(ws.run())
 
@@ -34,15 +42,14 @@ def run(loop: asyncio.BaseEventLoop):
 
 if __name__ == '__main__':
     loop = asyncio.get_event_loop()
+    exceptions_handler = ControllerHanlder()
 
     try:
         run(loop)
     except (KeyboardInterrupt, SystemExit):
         pass
     except Exception as e:
-        traceback.print_exc()
-        applogger.critical(f'WE\'RE FUCKED {e}', exc_info=True)
-        loop.run_until_complete(ws.send_error(f'WE\'RE FUCKED: {e}'))
+        loop.run_until_complete(exceptions_handler.handle(e))
     finally:
         loop.run_until_complete(banana.close())
         loop.run_until_complete(ws.close())
