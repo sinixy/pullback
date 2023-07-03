@@ -6,7 +6,21 @@
 - DO NOT LET THE ```_serve``` STUCK INSIDE AN INFINITE LOOP
 
 ## TO-DO
-- Choose a versioning convention
-- Proper exceptions handling
 - Proper (unified?) configuration
-- Othe code improvements (decorators, do smth with string response-returns)
+
+## Releases
+
+### 1.1.0
+##### Dedicated exception handling package
+```bash
+exceptions/
+├─ handlers/
+│  ├─ __init__.py
+├─ __init__.py
+├─ exceptions.py
+├─ utils.py
+```
+The ```handlers``` directory should contain all the modules (classes) for handling different parts of the application. The ```exceptions.py``` module must define every custom exception.
+##### Code quality improvement
+- moved logging to a separate module
+- moved buy confirming logic to the Symbol class
