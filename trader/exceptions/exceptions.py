@@ -1,6 +1,3 @@
-from models import Request
-
-
 class UnexpectedSymbolStatusException(Exception):
     def __init__(self, status):
         super().__init__()
