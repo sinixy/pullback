@@ -19,10 +19,11 @@ class OrderDataStream:
                 if status != OrderStatus.FILLED:
                     continue
 
-                symbol = msg['o']['s']
+                symbol = self.wallet[msg['o']['s']]
                 side = msg['o']['S']
                 if side == 'BUY':
-                    await self.wallet[symbol].set_filled_buy(BuyOrder.from_dict(msg['o']))
+                    symbol.set_filled_buy(BuyOrder.from_dict(msg['o']))
                 else:
-                    await self.wallet[symbol].set_filled_sell(SellOrder.from_dict(msg['o']))
+                    symbol.set_filled_sell(SellOrder.from_dict(msg['o']))
+                    await symbol.save_trade()
                     

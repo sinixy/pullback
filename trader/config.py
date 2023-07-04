@@ -1,29 +1,43 @@
 from dotenv import load_dotenv
+from typing import List
 import os
-import json
+
 
 load_dotenv()
 
 
-MONGODB_HOST = os.environ['MONGODB_HOST']
-MONGODB_NAME = os.environ['MONGODB_NAME']
+class Config:
+    MONGODB_HOST = os.environ['MONGODB_HOST']
+    MONGODB_NAME = os.environ['MONGODB_NAME']
 
-UNIX_SOCKET_ADDRESS = os.environ['UNIX_SOCKET_ADDRESS']
-WEBSOCKET_HOST = os.environ['WEBSOCKET_HOST']
-WEBSOCKET_PORT = os.environ['WEBSOCKET_PORT']
+    UNIX_SOCKET_ADDRESS = os.environ['UNIX_SOCKET_ADDRESS']
+    WEBSOCKET_HOST = os.environ['WEBSOCKET_HOST']
+    WEBSOCKET_PORT = os.environ['WEBSOCKET_PORT']
 
-BINANCE_API_KEY = os.environ['BINANCE_API_KEY']
-BINANCE_API_SECRET = os.environ['BINANCE_API_SECRET']
-TESTNET_BINANCE_API_KEY = os.environ['TESTNET_BINANCE_API_KEY']
-TESTNET_BINANCE_API_SECRET = os.environ['TESTNET_BINANCE_API_SECRET']
+    BINANCE_API_KEY = os.environ['BINANCE_API_KEY']
+    BINANCE_API_SECRET = os.environ['BINANCE_API_SECRET']
+    TESTNET_BINANCE_API_KEY = os.environ['TESTNET_BINANCE_API_KEY']
+    TESTNET_BINANCE_API_SECRET = os.environ['TESTNET_BINANCE_API_SECRET']
 
-MODE = 'EMULATOR'
-SYMBOLS_EXCHANGE_INITIALIZATION = False
-MARGIN_SIZE = 19
-LEVERAGE = 20
-MAX_ACTIVE_TRADES = 20
+    MODE: str = ''
+    SYMBOLS_EXCHANGE_INITIALIZATION: bool = False
+    MARGIN_SIZE: int = 0
+    LEVERAGE: int = 0
+    MAX_ACTIVE_TRADES: int = 0
 
-WINDOW_SIZE = 200
-SYMBOLS = []
-with open('symbols.json') as file:
-    SYMBOLS = json.load(file)
+    SYMBOLS: List[str] = []
+
+    @classmethod
+    def init(cls):
+        from db import config_db
+        
+        common_cofig_doc = config_db.get_common()
+        trader_config_doc = config_db.get_trader()
+
+        cls.MODE = trader_config_doc['mode']
+        cls.SYMBOLS_EXCHANGE_INITIALIZATION = trader_config_doc['symbolsExchangeInitialization']
+        cls.MARGIN_SIZE = trader_config_doc['marginSize']
+        cls.LEVERAGE = trader_config_doc['leverage']
+        cls.MAX_ACTIVE_TRADES = trader_config_doc['maxActiveTrades']
+
+        cls.SYMBOLS = common_cofig_doc['symbols']

@@ -6,7 +6,7 @@
     <groupId>org.sinixy</groupId>
     <artifactId>market</artifactId>
     <packaging>jar</packaging>
-    <version>1.0-SNAPSHOT</version>
+    <version>1.2.0</version>
 
     <properties>
         <maven.compiler.source>16</maven.compiler.source>
@@ -69,11 +69,6 @@
             <groupId>org.mongodb</groupId>
             <artifactId>mongodb-driver-sync</artifactId>
             <version>4.9.1</version>
-        </dependency>
-        <dependency>
-            <groupId>me.tongfei</groupId>
-            <artifactId>progressbar</artifactId>
-            <version>0.9.5</version>
         </dependency>
     </dependencies>
 

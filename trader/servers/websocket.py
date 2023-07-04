@@ -6,12 +6,16 @@ from typing import List, Tuple
 
 class WebsocketServer:
 
-    def __init__(self, host, port):
+    def __init__(self):
+        self.host: str = ''
+        self.port: str = ''
+
+        self.connected: bool = False
+        self.connections: List[Tuple[asyncio.StreamReader, asyncio.StreamWriter]] = []
+
+    def init(self, host, port):
         self.host = host
         self.port = port
-
-        self.connected = False
-        self.connections: List[Tuple[asyncio.StreamReader, asyncio.StreamWriter]] = []
 
     async def run(self):
         try:

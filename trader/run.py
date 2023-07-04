@@ -1,6 +1,6 @@
 import asyncio
 
-from config import MODE, UNIX_SOCKET_ADDRESS, SYMBOLS, BINANCE_API_KEY, BINANCE_API_SECRET, TESTNET_BINANCE_API_KEY, TESTNET_BINANCE_API_SECRET
+from config import Config
 from servers import ws
 from common import banana
 from exceptions import ExchangeInitializationException, WalletInitializationException
@@ -8,30 +8,46 @@ from exceptions.handlers import ControllerHanlder
 
 
 def run(loop: asyncio.BaseEventLoop):
-    api_key, api_secret, testnet = TESTNET_BINANCE_API_KEY, TESTNET_BINANCE_API_SECRET, True
-    if MODE == 'REAL':
-        api_key, api_secret, testnet = BINANCE_API_KEY, BINANCE_API_SECRET, False
+    from db import config_db, trades_db
+    config_db.init(Config.MONGODB_HOST, Config.MONGODB_NAME)
+    trades_db.init(Config.MONGODB_HOST, Config.MONGODB_NAME)
+
+    Config.init()
+
+    api_key, api_secret, testnet = Config.TESTNET_BINANCE_API_KEY, Config.TESTNET_BINANCE_API_SECRET, True
+    if Config.MODE == 'REAL':
+        api_key, api_secret, testnet = Config.BINANCE_API_KEY, Config.BINANCE_API_SECRET, False
 
     try:
-        loop.run_until_complete(banana.init(api_key, api_secret, testnet))
+        loop.run_until_complete(
+            banana.init(
+                api_key,
+                api_secret,
+                testnet=testnet,
+                init_symbols=Config.SYMBOLS_EXCHANGE_INITIALIZATION,
+                symbols=Config.SYMBOLS,
+                margin_size=Config.MARGIN_SIZE,
+                leverage=Config.LEVERAGE
+            )
+        )
     except Exception as e:
         raise ExchangeInitializationException(e)
 
     from models import Wallet
-    wallet = Wallet(SYMBOLS)
+    wallet = Wallet(Config.SYMBOLS, Config.MAX_ACTIVE_TRADES)
     try:
         loop.run_until_complete(wallet.init())
     except Exception as e:
         raise WalletInitializationException(e)
 
-    loop.create_task(ws.run())
-
     from trader import LiveTrader
-    trader = LiveTrader(wallet)
-
     from servers import UnixServer
-    unix_server = UnixServer(UNIX_SOCKET_ADDRESS, trader, loop=loop)
+    trader = LiveTrader(wallet)
+    unix_server = UnixServer(Config.UNIX_SOCKET_ADDRESS, trader, loop=loop)
     loop.create_task(unix_server.run())
+
+    ws.init(Config.WEBSOCKET_HOST, Config.WEBSOCKET_PORT)
+    loop.create_task(ws.run())
 
     from streams import OrderDataStream
     stream = OrderDataStream(wallet)

@@ -6,7 +6,7 @@ from common import banana
 from models.request import Request, BuyRequest, SellRequest
 from models.order import Order, BuyOrder, SellOrder
 from models.enums import SymbolStatus
-from common.db import mongo_db
+from db import trades_db
 from exceptions.handlers import SymbolHandler
 from exceptions import (
     SaveTradeException,
@@ -78,41 +78,28 @@ class Symbol:
         if self.status != SymbolStatus.SELL_ALLOWED:
             raise UnexpectedSymbolStatusException(self.status)
     
-    async def set_filled_buy(self, order: BuyOrder):
-        # it doesn't needs to be async (for now) but im doing it for consistency with set_filled_sell
+    def set_filled_buy(self, order: BuyOrder):
         self.orders['buy'] = order
         self.status = SymbolStatus.SELL_ALLOWED
 
-    async def set_filled_sell(self, order: SellOrder):
+    def set_filled_sell(self, order: SellOrder):
         self.orders['sell'] = order
         self.status = SymbolStatus.BUY_ALLOWED
+
+    async def save_trade(self):
         try:
-            await self._save_trade()
+            await trades_db.insert_trade(self.name, self.requests, self.orders)
         except Exception as e:
             self.exceptions_handler.handle(SaveTradeException(e))
-        self._reset()
+        self.reset()
 
-    async def _save_trade(self):
-        await mongo_db.trades.insert_one({
-            'symbol': self.name,
-            'time': self.requests['buy'].trigger.time,
-            'requests': {
-                'buy': self.requests['buy'].to_dict(),
-                'sell': self.requests['sell'].to_dict()
-            },
-            'orders': {
-                'buy': self.orders['buy'].to_dict(),
-                'sell': self.orders['sell'].to_dict()
-            }
-        })
-
-    def _reset(self):
+    def reset(self):
         self.requests = {'buy': None, 'sell': None}
         self.orders = {'buy': None, 'sell': None}
 
     def suspend(self):
         self.status = SymbolStatus.TRADING_SUSPENDED
-        self._reset()
+        self.reset()
 
     async def _wait_for_symbol_status_change(self, status, timeout=5):
         start = time()
