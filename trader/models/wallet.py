@@ -1,6 +1,5 @@
 from typing import Dict
 
-from config import MAX_ACTIVE_TRADES
 from models.symbol import Symbol
 from models.enums import SymbolStatus
 from common import banana
@@ -8,8 +7,9 @@ from common import banana
 
 class Wallet:
 
-    def __init__(self, symbols: list):
+    def __init__(self, symbols: list, max_active_trades: int = 20):
         self.symbols: Dict[str, Symbol] = {s: Symbol(s) for s in symbols}
+        self.max_active_trades: int = max_active_trades
 
     async def init(self):
         info = await banana.exchange_info()
@@ -29,7 +29,7 @@ class Wallet:
             if symbol.status in [SymbolStatus.TRADING_SUSPENDED, SymbolStatus.BUY_ALLOWED]:
                 continue
             currently_active += 1
-        return currently_active > MAX_ACTIVE_TRADES
+        return currently_active > self.max_active_trades
     
     def suspend_trading(self):
         for symbol in self.symbols.values():

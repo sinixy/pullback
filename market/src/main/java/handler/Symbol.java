@@ -2,7 +2,6 @@ package handler;
 
 import java.util.HashMap;
 
-import output.Database;
 import output.Socket;
 import config.Config;
 
@@ -32,7 +31,6 @@ public class Symbol {
 
     public Double handleNewPoint(Point point) {
         Double difference = tw.add(point);
-        // System.out.println("3. difference=" + difference.toString());
         if (difference > 0) {
             signalEMA.move(tw.getMax().price, difference);
             structEMA.move(tw.getMean().price, difference);
@@ -69,29 +67,12 @@ public class Symbol {
         return difference;
     }
 
-    private String sendBuyRequest(CheckResults results, Point trigger) {
-        // gotta save the aggTradeId too
-        String resp = null;
-        switch (Config.MODE) {
-            case "LIVE":
-                resp = Socket.sendBuyMessage(symbol, results, structEMA.latestPoint, trigger);
-                break;
-            case "BACKTEST":
-                resp = Database.insertTrade(symbol, results, structEMA.latestPoint).toString();
-                break;
-        }
-        return resp;
+    String sendBuyRequest(CheckResults results, Point trigger) {
+        return Socket.sendBuyMessage(symbol, results, structEMA.latestPoint, trigger);
     }
 
     private void sendSellRequest(Point trigger) {
-        switch (Config.MODE) {
-            case "LIVE":
-                Socket.sendSellMessage(currentlyTrading, structEMA.latestPoint, trigger);
-                break;
-            case "BACKTEST":
-                Database.sellTrade(currentlyTrading, structEMA.latestPoint);
-                break;
-        }
+        Socket.sendSellMessage(currentlyTrading, structEMA.latestPoint, trigger);
     }
 
 }

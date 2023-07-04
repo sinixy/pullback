@@ -1,23 +1,43 @@
 from binance import AsyncClient, BinanceSocketManager, enums
 from binance.exceptions import BinanceAPIException
-
-from config import MARGIN_SIZE, LEVERAGE, SYMBOLS_EXCHANGE_INITIALIZATION
+from typing import List
 
 
 class Exchange:
 
-    async def init(self, api_key, api_secret, testnet=False):
-        self.client: AsyncClient = await AsyncClient.create(api_key, api_secret, testnet=testnet)
-        self.bm: BinanceSocketManager = BinanceSocketManager(self.client)
-        if SYMBOLS_EXCHANGE_INITIALIZATION:
+    def __init__(self):
+        self.symbols: List[str] = []
+        self.margin_size: float = 20
+        self.leverage: int = 20
+
+        self.client: AsyncClient = None
+        self.bm: BinanceSocketManager = None
+
+    async def init(
+            self,
+            api_key,
+            api_secret,
+            testnet=False,
+            init_symbols=False,
+            symbols=[],
+            margin_size=20,
+            leverage=20
+    ):
+        self.symbols = symbols
+        self.margin_size = margin_size
+        self.leverage = leverage
+
+        self.client = await AsyncClient.create(api_key, api_secret, testnet=testnet)
+        self.bm = BinanceSocketManager(self.client)
+        
+        if init_symbols:
             await self._init_symbols()
 
     async def _init_symbols(self):
         from tqdm import tqdm
-        from config import SYMBOLS
 
-        for s in tqdm(SYMBOLS, desc='Initializing symbols'):
-            await self.set_leverage(s, LEVERAGE)
+        for s in tqdm(self.symbols, desc='Initializing symbols'):
+            await self.set_leverage(s, self.leverage)
             await self.set_margin_type(s, 'ISOLATED')
 
     async def exchange_info(self):
@@ -44,7 +64,7 @@ class Exchange:
         if quantity is None:
             if price is None:
                 raise Exception('Both quantity and price cannot be undefined at the same time')
-            quantity = MARGIN_SIZE * LEVERAGE / price
+            quantity = self.margin_size * self.leverage / price
         quantity = int(quantity) if precision == 0 else round(quantity, precision)
 
         await self.client.futures_create_order(
@@ -58,7 +78,7 @@ class Exchange:
         if quantity is None:
             if price is None:
                 raise Exception('Both quantity and price cannot be undefined at the same time')
-            quantity = MARGIN_SIZE * LEVERAGE / price
+            quantity = self.margin_size * self.leverage / price
         quantity = int(quantity) if precision == 0 else round(quantity, precision)
 
         await self.client.futures_create_order(

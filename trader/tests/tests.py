@@ -2,7 +2,7 @@ import random
 import json
 import asyncio
 
-from config import SYMBOLS, TESTNET_BINANCE_API_KEY, TESTNET_BINANCE_API_SECRET, UNIX_SOCKET_ADDRESS
+from config import Config
 from common import banana
 from tests.client import TestClient
 
@@ -69,11 +69,24 @@ async def test_multiple(client, loop, data):
         await asyncio.sleep(max(0.2, random.random()))
 
 async def main(loop):
-    await banana.init(TESTNET_BINANCE_API_KEY, TESTNET_BINANCE_API_SECRET, True)
-    client = TestClient(UNIX_SOCKET_ADDRESS)
+    from db import config_db, trades_db
+    config_db.init(Config.MONGODB_HOST, Config.MONGODB_NAME)
+    trades_db.init(Config.MONGODB_HOST, Config.MONGODB_NAME)
+    Config.init()
+
+    await banana.init(
+        Config.TESTNET_BINANCE_API_KEY,
+        Config.TESTNET_BINANCE_API_SECRET,
+        testnet=True,
+        init_symbols=Config.SYMBOLS_EXCHANGE_INITIALIZATION,
+        symbols=Config.SYMBOLS,
+        margin_size=Config.MARGIN_SIZE,
+        leverage=Config.LEVERAGE
+    )
+    client = TestClient(Config.UNIX_SOCKET_ADDRESS)
     await client.start()
     
-    symbols = random.choices(SYMBOLS, k=8)
+    symbols = random.choices(Config.SYMBOLS, k=8)
     data = []
     for s in symbols:
         if random.random() < 0.4:
