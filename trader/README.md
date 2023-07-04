@@ -5,10 +5,17 @@
 - ```SYMBOLS_EXCHANGE_INITIALIZATION = True``` to set margin type and leverage for each symbol
 - DO NOT LET THE ```_serve``` STUCK INSIDE AN INFINITE LOOP
 
-## TO-DO
-- Proper (unified?) configuration
-
 ## Releases
+
+### 1.2.0
+##### Centralized remote config
+Now you can edit values and symbols on the remote mongodb and they will be loaded here on stratup.
+
+###### Code quality improvement
+- created the config class as a result of transitioning to a new config system;
+- created the database package for the same reason;
+- moved trade saving logic to the TradesDatabase class;
+- refactored a few modules so they don't need to import any config values – everything must be initialized on startup.
 
 ### 1.1.0
 ##### Dedicated exception handling package
