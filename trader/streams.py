@@ -20,10 +20,13 @@ class OrderDataStream:
                     continue
 
                 symbol = self.wallet[msg['o']['s']]
+                if symbol.is_suspended():
+                    continue
+
                 side = msg['o']['S']
                 if side == 'BUY':
-                    symbol.set_filled_buy(BuyOrder.from_dict(msg['o']))
+                    await symbol.set_filled_buy(BuyOrder.from_dict(msg['o']))
                 else:
-                    symbol.set_filled_sell(SellOrder.from_dict(msg['o']))
+                    await symbol.set_filled_sell(SellOrder.from_dict(msg['o']))
                     await symbol.save_trade()
                     

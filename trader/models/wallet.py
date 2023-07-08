@@ -26,7 +26,7 @@ class Wallet:
     def is_full(self) -> bool:
         currently_active = 0
         for symbol in self.symbols.values():
-            if symbol.status in [SymbolStatus.TRADING_SUSPENDED, SymbolStatus.BUY_ALLOWED]:
+            if symbol.status in [SymbolStatus.TRADING_SUSPENDED, SymbolStatus.BUY_ALLOWED, SymbolStatus.BLOCK_NEXT_SELL]:
                 continue
             currently_active += 1
         return currently_active > self.max_active_trades

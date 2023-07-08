@@ -3,6 +3,17 @@ from binance.exceptions import BinanceAPIException
 from typing import List
 
 
+def with_quantity(submit_func):
+    async def submit_with_quantity(ex, symbol, quantity=None, price=None, precision=0):
+        if quantity is None:
+            if price is None:
+                raise Exception('Both quantity and price cannot be undefined at the same time')
+            quantity = ex.margin_size * ex.leverage / price
+        quantity = int(quantity) if precision == 0 else round(quantity, precision)
+        return await submit_func(ex, symbol, quantity, price, precision)
+    return submit_with_quantity
+
+
 class Exchange:
 
     def __init__(self):
@@ -59,14 +70,9 @@ class Exchange:
             if e.code == -4046:
                 return
             raise e
-
+        
+    @with_quantity
     async def submit_buy_market_order(self, symbol, quantity=None, price=None, precision=0):
-        if quantity is None:
-            if price is None:
-                raise Exception('Both quantity and price cannot be undefined at the same time')
-            quantity = self.margin_size * self.leverage / price
-        quantity = int(quantity) if precision == 0 else round(quantity, precision)
-
         await self.client.futures_create_order(
             symbol=symbol,
             side=enums.SIDE_BUY,
@@ -74,13 +80,8 @@ class Exchange:
             quantity=quantity
         )
 
+    @with_quantity
     async def submit_sell_market_order(self, symbol, quantity=None, price=None, precision=0):
-        if quantity is None:
-            if price is None:
-                raise Exception('Both quantity and price cannot be undefined at the same time')
-            quantity = self.margin_size * self.leverage / price
-        quantity = int(quantity) if precision == 0 else round(quantity, precision)
-
         await self.client.futures_create_order(
             symbol=symbol,
             side=enums.SIDE_SELL,

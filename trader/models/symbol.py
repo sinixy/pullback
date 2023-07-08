@@ -2,7 +2,7 @@ from typing import Dict
 from time import time
 import asyncio
 
-from common import banana
+from common import banana, logger
 from models.request import Request, BuyRequest, SellRequest
 from models.order import Order, BuyOrder, SellOrder
 from models.enums import SymbolStatus
@@ -32,42 +32,47 @@ class Symbol:
 
         self.exceptions_handler = SymbolHandler(self)
 
-    async def buy(self, request: BuyRequest):
+    async def buy(self, price: float):
+        await logger.info(f'Buying {self.name} at ${price}')
         try:
-            await self._buy(request)
+            await self._buy(price)
         except Exception as e:
             await self.exceptions_handler.handle(e)
 
-    async def _buy(self, request: BuyRequest):
-        self.requests['buy'] = request
+    async def _buy(self, price: float):
         self.status = SymbolStatus.SUBMITTING_BUY_ORDER
         self._loop.create_task(self.watch_buy_submission_timeout())
 
-        await banana.submit_buy_market_order(self.name, price=request.trigger.price, precision=self.precision)
+        await banana.submit_buy_market_order(self.name, price=price, precision=self.precision)
         
+        await logger.info(f'{self.name} buy order submitted')
         self.status = SymbolStatus.WAITING_FOR_BUY_ORDER_FILL
 
-    async def sell(self, request: SellRequest):
+    async def sell(self):
+        await logger.info(f'Selling {self.name}')
         try:
-            await self._sell(request)
+            await self._sell()
         except Exception as e:
             await self.exceptions_handler.handle(e)
     
-    async def _sell(self, request: SellRequest) -> str:
-        self.requests['sell'] = request
+    async def _sell(self):
         self.status = SymbolStatus.SUBMITTING_SELL_ORDER
         self._loop.create_task(self.watch_sell_submission_timeout())
 
         await banana.submit_sell_market_order(self.name, quantity=self.orders['buy'].quantity, precision=self.precision)
         
+        await logger.info(f'{self.name} sell order submitted')
         self.status = SymbolStatus.WAITING_FOR_SELL_ORDER_FILL
     
     async def confirm_buy(self) -> bool:
+        await logger.info(f'Confirming {self.name} buy')
         try:
             await self._confirm_buy()
         except Exception as e:
             await self.exceptions_handler.handle(UnconfirmedBuyException(e))
             return False
+        
+        await logger.info(f'{self.name} buy confirmed')
         return True
 
     async def _confirm_buy(self):
@@ -77,20 +82,30 @@ class Symbol:
         
         if self.status != SymbolStatus.SELL_ALLOWED:
             raise UnexpectedSymbolStatusException(self.status)
+        
+    def set_request_buy(self, request: BuyRequest):
+        self.requests['buy'] = request
+
+    def set_request_sell(self, request: SellRequest):
+        self.requests['sell'] = request
     
-    def set_filled_buy(self, order: BuyOrder):
+    async def set_filled_buy(self, order: BuyOrder):
+        await logger.info(f'{self.name} buy order filled')
         self.orders['buy'] = order
         self.status = SymbolStatus.SELL_ALLOWED
 
-    def set_filled_sell(self, order: SellOrder):
+    async def set_filled_sell(self, order: SellOrder):
+        await logger.info(f'{self.name} sell order filled')
         self.orders['sell'] = order
         self.status = SymbolStatus.BUY_ALLOWED
 
     async def save_trade(self):
+        await logger.info(f'Saving {self.name} trade')
         try:
             await trades_db.insert_trade(self.name, self.requests, self.orders)
         except Exception as e:
             self.exceptions_handler.handle(SaveTradeException(e))
+        await logger.info(f'{self.name} trade saved')
         self.reset()
 
     def reset(self):
@@ -100,6 +115,9 @@ class Symbol:
     def suspend(self):
         self.status = SymbolStatus.TRADING_SUSPENDED
         self.reset()
+
+    def is_suspended(self) -> bool:
+        return self.status == SymbolStatus.TRADING_SUSPENDED
 
     async def _wait_for_symbol_status_change(self, status, timeout=5):
         start = time()
