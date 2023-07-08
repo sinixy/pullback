@@ -76,7 +76,6 @@ class Exchange:
         await self.client.futures_create_order(
             symbol=symbol,
             side=enums.SIDE_BUY,
-            timeInForce=enums.TIME_IN_FORCE_FOK,
             type=enums.FUTURE_ORDER_TYPE_MARKET,
             quantity=quantity
         )
@@ -86,7 +85,6 @@ class Exchange:
         await self.client.futures_create_order(
             symbol=symbol,
             side=enums.SIDE_SELL,
-            timeInForce=enums.TIME_IN_FORCE_FOK,
             type=enums.FUTURE_ORDER_TYPE_MARKET,
             quantity=quantity
         )
