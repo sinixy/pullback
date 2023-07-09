@@ -7,6 +7,12 @@
 
 ## Releases
 
+### 1.2.2
+##### Partial fills support
+Now application is saving data about PARIALLY_FILLED events. For now I just need it to calculate full profit of the trade, but it actually might be useful during backtesting too.
+###### Code quality improvement
+- moved the whole fills setting logic inside the Symbol class
+
 ### 1.2.1
 ##### Logging extended
 This version should be ready for real trading, so logging has been extended to include important events besides exceptions.
