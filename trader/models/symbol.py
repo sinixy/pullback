@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict, List
 from time import time
 import asyncio
 
@@ -25,6 +25,7 @@ class Symbol:
         self.precision: int = None
         self.requests: Dict[str, Request] = {'buy': None, 'sell': None}
         self.orders: Dict[str, Order] = {'buy': None, 'sell': None}
+        self.fills: Dict[str, List[Order]] = {'buy': [], 'sell': []}
 
         self._loop: asyncio.BaseEventLoop = loop
         if not self._loop:
@@ -88,6 +89,22 @@ class Symbol:
 
     def set_request_sell(self, request: SellRequest):
         self.requests['sell'] = request
+
+    def add_fill(self, message):
+        side = message['S']
+        if side == 'BUY':
+            self.fills['buy'].append(BuyOrder.from_dict(message))
+        else:
+            self.fills['sell'].append(SellOrder.from_dict(message))
+
+    async def set_filled(self, message: dict):
+        self.add_fill(message)
+        side = message['S']
+        if side == 'BUY':
+            await self.set_filled_buy(BuyOrder.from_dict(message))
+        else:
+            await self.set_filled_sell(SellOrder.from_dict(message))
+            await self.save_trade()
     
     async def set_filled_buy(self, order: BuyOrder):
         await logger.info(f'{self.name} buy order filled')
@@ -102,7 +119,7 @@ class Symbol:
     async def save_trade(self):
         await logger.info(f'Saving {self.name} trade')
         try:
-            await trades_db.insert_trade(self.name, self.requests, self.orders)
+            await trades_db.insert_trade(self.name, self.requests, self.orders, self.fills)
         except Exception as e:
             self.exceptions_handler.handle(SaveTradeException(e))
         await logger.info(f'{self.name} trade saved')
@@ -111,6 +128,7 @@ class Symbol:
     def reset(self):
         self.requests = {'buy': None, 'sell': None}
         self.orders = {'buy': None, 'sell': None}
+        self.fills = {'buy': [], 'sell': []}
 
     def suspend(self):
         self.status = SymbolStatus.TRADING_SUSPENDED

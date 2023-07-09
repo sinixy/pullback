@@ -16,6 +16,7 @@ class SymbolStatus:
 class OrderStatus:
     NEW = 'NEW'
     FILLED = 'FILLED'
+    PARTIALLY_FILLED = 'PARTIALLY_FILLED'
 
 
 class UserDataEvent:

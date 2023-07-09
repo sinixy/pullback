@@ -14,7 +14,7 @@ class TradesDatabase(Database):
         self.db: AsyncIOMotorDatabase = self.client.get_database(self.db_name)
         self.collection: AsyncIOMotorCollection = self.db.get_collection(TradesDatabase.COLLECTION_NAME)
 
-    async def insert_trade(self, symbol: str, requests, orders):
+    async def insert_trade(self, symbol: str, requests, orders, fills):
         await self.collection.insert_one({
             'symbol': symbol,
             'time': requests['buy'].trigger.time,
@@ -25,5 +25,9 @@ class TradesDatabase(Database):
             'orders': {
                 'buy': orders['buy'].to_dict(),
                 'sell': orders['sell'].to_dict()
+            },
+            'fills': {
+                'buy': [buy.to_dict() for buy in fills['buy']],
+                'sell': [sell.to_dict() for sell in fills['sell']]
             }
         })
