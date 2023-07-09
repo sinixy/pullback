@@ -94,7 +94,8 @@ async def main(loop):
         else:
             data.append((s, 5000))
     print('Testing', data)
-    await test_multiple(client, loop, data)
+    #await test_multiple(client, loop, data)
+    await test_single(client, 'ADAUSDT', 5000)
 
 def run():
     loop = asyncio.get_event_loop()
