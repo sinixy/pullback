@@ -6,5 +6,6 @@ from exceptions.exceptions import (
     SubmissionTimeoutException,
     HandleRequestException,
     ExchangeInitializationException,
-    WalletInitializationException
+    WalletInitializationException,
+    OrderSubmissionException
 )

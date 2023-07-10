@@ -39,6 +39,9 @@ class WebsocketServer:
     async def send_error(self, error: str):
         await self._send(json.dumps({'message': 'ERROR', 'error': error}))
 
+    async def send_warning(self, warning: str):
+        await self._send(json.dumps({'message': 'WARNING', 'warning': warning}))
+
     async def send_dict(self, d: dict):
         if not d.get('message'):
             d['message'] = 'UNDEFINED'

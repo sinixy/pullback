@@ -7,13 +7,16 @@ from models.request import Request, BuyRequest, SellRequest
 from models.order import Order, BuyOrder, SellOrder
 from models.enums import SymbolStatus
 from db import trades_db
+from servers import ws
+
 from exceptions.handlers import SymbolHandler
 from exceptions import (
     SaveTradeException,
     ChangeStatusTimeoutException,
     UnconfirmedBuyException,
     UnexpectedSymbolStatusException,
-    SubmissionTimeoutException
+    SubmissionTimeoutException,
+    OrderSubmissionException
 )
 
 
@@ -38,7 +41,7 @@ class Symbol:
         try:
             await self._buy(price)
         except Exception as e:
-            await self.exceptions_handler.handle(e)
+            await self.exceptions_handler.handle(OrderSubmissionException('BUY', e))
 
     async def _buy(self, price: float):
         self.status = SymbolStatus.SUBMITTING_BUY_ORDER
@@ -54,7 +57,7 @@ class Symbol:
         try:
             await self._sell()
         except Exception as e:
-            await self.exceptions_handler.handle(e)
+            await self.exceptions_handler.handle(OrderSubmissionException('SELL', e))
     
     async def _sell(self):
         self.status = SymbolStatus.SUBMITTING_SELL_ORDER
@@ -136,6 +139,9 @@ class Symbol:
 
     def is_suspended(self) -> bool:
         return self.status == SymbolStatus.TRADING_SUSPENDED
+    
+    def block_next_sell(self):
+        self.status = SymbolStatus.BLOCK_NEXT_SELL
 
     async def _wait_for_symbol_status_change(self, status, timeout=5):
         start = time()
@@ -168,3 +174,28 @@ class Symbol:
             await self.wait_for_sell_submission()
         except Exception as e:
             await self.exceptions_handler.handle(SubmissionTimeoutException('SELL', e))
+
+    def sell_until_success(self):
+        self._loop.create_task(self._sell_until_success())
+
+    async def _sell_until_success(self):
+        retries = 1
+        sold = False
+        while not sold:
+            if retries > 1000:
+                await logger.error(f'Too many retries selling {self.name}!')
+                await ws.send_error(f'Too many retries selling {self.name}!')
+                self.suspend()
+                break
+
+            await logger.info(f'(#{retries}) Trying to sell {self.name}...')
+            try:
+                await self._sell()
+                sold = True
+            except:
+                await asyncio.sleep(0.2)
+                retries += 1
+
+        if sold:
+            await logger.info(f'Sold {self.name} after {retries} retries!')
+            await ws.send_message(f'Sold {self.name} after {retries} retries!')
