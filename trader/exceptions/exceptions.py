@@ -62,6 +62,9 @@ class WalletInitializationException(WrappingException):
 
 class OrderSubmissionException(WrappingException):
 
-     def __init__(self, side: str, parent_exception):
+    def __init__(self, side: str, parent_exception):
         super().__init__(parent_exception)
         self.side = side
+
+    def __str__(self):
+        return f'OrderSubmissionException(side={self.side}): {self.parent_exception}'
