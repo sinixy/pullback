@@ -15,7 +15,6 @@ class ChangeStatusTimeoutException(Exception):
     def __str__(self):
         return f'ChangeStatusTimeoutException(status={self.status}, duration={self.duration})'
 
-
 class WrappingException(Exception):
     def __init__(self, parent_exception: Exception):
         super().__init__()
@@ -59,3 +58,10 @@ class WalletInitializationException(WrappingException):
 
     def __str__(self):
         return f'Failed to initialize wallet: {self.parent_exception}'
+
+
+class OrderSubmissionException(WrappingException):
+
+     def __init__(self, side: str, parent_exception):
+        super().__init__(parent_exception)
+        self.side = side

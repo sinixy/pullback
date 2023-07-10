@@ -12,3 +12,7 @@ class Handler:
     async def _report(self, msg: str):
         await ws.send_error(msg)
         await logger.error(msg, exc_info=True)
+
+    async def _warn(self, msg):
+        await ws.send_warning(msg)
+        await logger.warn(msg)

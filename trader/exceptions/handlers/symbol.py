@@ -1,5 +1,11 @@
 from exceptions.handlers.handler import Handler
-from exceptions.exceptions import SaveTradeException, ChangeStatusTimeoutException, UnconfirmedBuyException, SubmissionTimeoutException
+from exceptions.exceptions import (
+    SaveTradeException,
+    ChangeStatusTimeoutException,
+    UnconfirmedBuyException,
+    SubmissionTimeoutException,
+    OrderSubmissionException
+)
 
 from binance.exceptions import BinanceAPIException
 
@@ -12,8 +18,8 @@ class SymbolHandler(Handler):
 
     async def handle(self, e: Exception):
         self.symbol.suspend()
-        if isinstance(e, BinanceAPIException):
-            await self.handle_api(e)
+        if isinstance(e, OrderSubmissionException):
+            await self.handle_submission(e)
         elif isinstance(e, SaveTradeException):
             await self.handle_save_trade(e)
         elif isinstance(e, ChangeStatusTimeoutException):
@@ -25,9 +31,22 @@ class SymbolHandler(Handler):
         else:
             await super().handle(f'{self.symbol.name} error! {e}')
 
-    async def handle_api(self, e: BinanceAPIException):
-        if e.code == -4131:
-            await self._report(f'No liquidity for {self.symbol.name}')
+    async def handle_submission(self, e: OrderSubmissionException):
+        if isinstance(e.parent_exception, BinanceAPIException):
+            await self.handle_api(e)
+        else:
+            await self._report(f'{self.symbol.name} {e.side} order submission error! {e}')
+
+    async def handle_api(self, e: OrderSubmissionException):
+        api_error = e.parent_exception
+        if api_error.code == -4131:
+            await self._report(f'No liquidity for {e.side} {self.symbol.name}')
+        elif api_error.code == -1001:
+            await self._warn(f'Failed to {e.side} {self.symbol.name} due to binance internal error!')
+            if e.side == 'BUY':
+                self.symbol.block_next_sell()
+            else:
+                self.symbol.sell_until_success()
         else:
             await self._report(f'{self.symbol.name} API error! {e}')
 
