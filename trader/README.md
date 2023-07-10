@@ -2,14 +2,22 @@
 
 ## Notes
 - Modes: EMULATOR, REAL
-- ```SYMBOLS_EXCHANGE_INITIALIZATION = True``` to set margin type and leverage for each symbol
 - DO NOT LET THE ```_serve``` STUCK INSIDE AN INFINITE LOOP
 
 ## Releases
 
+### 1.2.3
+##### Handling the binance' internal error
+During high volatility periods binance might fail to process buy/sell requests:  ```APIError(code=-1001): Internal error; unable to process your request. Please try again.```
+Trader is going to handle it like this:
+- BUY fail: just block the next sell request from executing
+- SELL fail: keep trying to sell the symbol until success or max (1000) retries exceeded
+###### Sending warns and info messages
+Added ability to safely send warnings and simple info messages to manasan.
+
 ### 1.2.2
 ##### Partial fills support
-Now application is saving data about PARIALLY_FILLED events. For now I just need it to calculate full profit of the trade, but it actually might be useful during backtesting too.
+Now trader is saving data about ```PARTIALLY_FILLED``` events. For now I just need it to calculate full profit of the trade, but it actually might be useful during backtesting too.
 ###### Code quality improvement
 - moved the whole fills setting logic inside the Symbol class
 
@@ -21,7 +29,7 @@ This version should be ready for real trading, so logging has been extended to i
 - fixed a symbol with the ```BLOCK_NEXT_SELL``` status being counted as an active symbol 
 ###### Code quality improvement
 - introduced the with_quantity decorator, which calculates the quantity for submitting buy/sell orders.
-- modified the buy and sell methods of a symbol to only accept relatable values, with request-related tasks handled by the trader.
+- modified the buy and sell methods of a symbol to only accept relatable values, with request-related tasks handled by trader.
 - added the ```is_suspended()``` method to the Symbol class; although similar methods could be created for all statuses, it is currently considered redundant.
 
 
