@@ -49,8 +49,13 @@ class Symbol:
 
         await banana.submit_buy_market_order(self.name, price=price, precision=self.precision)
         
+        if self.status != SymbolStatus.SELL_ALLOWED:
+            # It can actually get filled almost immediately after submit O_O
+            # Then the current status wil be SELL_ALLOWED, so without this check the symbol won't be sold
+            # (or maybe it was just cuz I put await logger.info before setting the status? at least it could've made it possible)
+            self.status = SymbolStatus.WAITING_FOR_BUY_ORDER_FILL
+
         await logger.info(f'{self.name} buy order submitted')
-        self.status = SymbolStatus.WAITING_FOR_BUY_ORDER_FILL
 
     async def sell(self):
         await logger.info(f'Selling {self.name}')
@@ -65,11 +70,13 @@ class Symbol:
 
         await banana.submit_sell_market_order(self.name, quantity=self.orders['buy'].quantity, precision=self.precision)
         
+        if self.status != SymbolStatus.BUY_ALLOWED:
+            # see self._buy
+            self.status = SymbolStatus.WAITING_FOR_SELL_ORDER_FILL
+
         await logger.info(f'{self.name} sell order submitted')
-        self.status = SymbolStatus.WAITING_FOR_SELL_ORDER_FILL
     
     async def confirm_buy(self) -> bool:
-        await logger.info(f'Confirming {self.name} buy')
         try:
             await self._confirm_buy()
         except Exception as e:
@@ -110,14 +117,14 @@ class Symbol:
             await self.save_trade()
     
     async def set_filled_buy(self, order: BuyOrder):
-        await logger.info(f'{self.name} buy order filled')
         self.orders['buy'] = order
         self.status = SymbolStatus.SELL_ALLOWED
+        await logger.info(f'{self.name} buy order filled')
 
     async def set_filled_sell(self, order: SellOrder):
-        await logger.info(f'{self.name} sell order filled')
         self.orders['sell'] = order
         self.status = SymbolStatus.BUY_ALLOWED
+        await logger.info(f'{self.name} sell order filled')
 
     async def save_trade(self):
         await logger.info(f'Saving {self.name} trade')

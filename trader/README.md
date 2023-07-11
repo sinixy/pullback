@@ -6,6 +6,24 @@
 
 ## Releases
 
+### 1.2.4
+##### Bug fix
+When I got an UnconfirmedBuyException and checked the logs I saw this:
+```bash
+[INFO] [PULLBACK] 2023-07-10 17:50:53.690 :: Received BUY_REQUEST for ANKRUSDT
+[INFO] [PULLBACK] 2023-07-10 17:50:53.694 :: Buying ANKRUSDT at $0.02379
+[INFO] [PULLBACK] 2023-07-10 17:50:53.721 :: ANKRUSDT buy order filled
+[INFO] [PULLBACK] 2023-07-10 17:50:53.723 :: ANKRUSDT buy order submitted
+[INFO] [PULLBACK] 2023-07-10 17:50:59.373 :: Received SELL_REQUEST for ANKRUSDT
+[INFO] [PULLBACK] 2023-07-10 17:50:59.375 :: Confirming ANKRUSDT buy
+[ERROR] [PULLBACK] 2023-07-10 17:51:04.391 :: ANKRUSDT unconfirmed buy! UnconfirmedBuyException: ChangeStatusTimeoutException(status=5, duration=5)
+```
+So basically the order got filled before the trader confirmed its submission. It might've been caused by await logging.info before setting the status to waiting, so here's what I think happened:
+1. await logger.info returned control to the event loop before setting the status to WAITING_FOR_BUY_ORDER_FILL.
+2. The order got filled really quickly and the status became SELL_ALLOWED.
+3. After this, await logger.info finished executing and status has been set to WAITING_FOR_BUY_ORDER_FILL, which means that now any sell request will fail to confirm the buy order fill.
+I moved every logging operation to the end of a method and also added a guard statement to not set the status to WAITING if it's already has been filled. I might as well consider rethinking the whole status system or/and make the logger sync to be sure.
+
 ### 1.2.3
 ##### Handling the binance' internal error
 During high volatility periods binance might fail to process buy/sell requests:  ```APIError(code=-1001): Internal error; unable to process your request. Please try again.```
