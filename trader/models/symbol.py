@@ -192,7 +192,8 @@ class Symbol:
             try:
                 await self._sell()
                 sold = True
-            except:
+            except Exception as e:
+                await logger.info(f'(#{retries}) Failed to sell {self.name}: {e}')
                 await asyncio.sleep(0.2)
                 retries += 1
 
