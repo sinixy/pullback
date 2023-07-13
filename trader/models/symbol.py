@@ -135,7 +135,6 @@ class Symbol:
 
     def suspend(self):
         self.status = SymbolStatus.TRADING_SUSPENDED
-        self.reset()
 
     def is_suspended(self) -> bool:
         return self.status == SymbolStatus.TRADING_SUSPENDED
@@ -185,7 +184,6 @@ class Symbol:
             if retries > 1000:
                 await logger.error(f'Too many retries selling {self.name}!')
                 await ws.send_error(f'Too many retries selling {self.name}!')
-                self.suspend()
                 break
 
             await logger.info(f'(#{retries}) Trying to sell {self.name}...')
@@ -198,5 +196,6 @@ class Symbol:
                 retries += 1
 
         if sold:
+            self.status = SymbolStatus.BUY_ALLOWED
             await logger.info(f'Sold {self.name} after {retries} retries!')
             await ws.send_message(f'Sold {self.name} after {retries} retries!')
