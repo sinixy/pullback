@@ -115,6 +115,7 @@ class Symbol:
         else:
             await self.set_filled_sell(SellOrder.from_dict(message))
             await self.save_trade()
+            self.reset()
     
     async def set_filled_buy(self, order: BuyOrder):
         self.orders['buy'] = order
@@ -133,7 +134,6 @@ class Symbol:
         except Exception as e:
             self.exceptions_handler.handle(SaveTradeException(e))
         await logger.info(f'{self.name} trade saved')
-        self.reset()
 
     def reset(self):
         self.requests = {'buy': None, 'sell': None}
@@ -203,6 +203,5 @@ class Symbol:
                 retries += 1
 
         if sold:
-            self.status = SymbolStatus.BUY_ALLOWED
             await logger.info(f'Sold {self.name} after {retries} retries!')
             await ws.send_message(f'Sold {self.name} after {retries} retries!')
