@@ -6,6 +6,9 @@
 
 ## Releases
 
+### 1.2.6
+Sending a pong in response to any ping to keep the connection alive.
+
 ### 1.2.5
 ##### Bug fix
 - removed resetting the symbol inside ```suspend()``` as it caused ```sell_until_success()``` added in 1.2.3 not being able to access the quantity needed to sell the symbol; also it's just kinda useless to do it anyway

@@ -34,7 +34,6 @@ class WebsocketServer:
                 print('Manasan disconnected!')
                 self.connected = False
 
-            print(message)
             if message == 'PING':
                 await self.send_message('PONG')
                 
