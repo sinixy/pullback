@@ -30,12 +30,14 @@ class WebsocketServer:
         while self.connected:
             data = await reader.readline()
             message = data.decode().strip()
-            if message:
-                print(message)
-            else:
+            if not message:
                 print('Manasan disconnected!')
                 self.connected = False
 
+            print(message)
+            if message == 'PING':
+                await self.send_message('PONG')
+                
     async def send_error(self, error: str):
         await self._send(json.dumps({'message': 'ERROR', 'error': error}))
 
