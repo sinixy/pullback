@@ -1,13 +1,12 @@
 package output;
 
-import java.net.URI;
-import java.net.http.HttpRequest;
-import java.net.http.HttpClient;
-import java.net.http.HttpResponse;
-import java.nio.charset.StandardCharsets;
-
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+
+import okhttp3.MediaType;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.RequestBody;
 
 import handler.CheckResults;
 import handler.Point;
@@ -16,20 +15,18 @@ import handler.Point;
 public class Trader {
     
     private static ObjectMapper mapper = new ObjectMapper();
-    private static HttpClient httpClient = HttpClient.newHttpClient();
+    private static OkHttpClient client = new OkHttpClient();
+    private static final MediaType JSON = MediaType.get("application/json");
 
     private static void sendMessage(ObjectNode message) {
-        try {
-            String jsonString = message.toString();
+        RequestBody body = RequestBody.create(message.toString(), JSON);
+        Request request = new Request.Builder()
+            .url("http://localhost:8888/trade")
+            .post(body)
+            .build();
 
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(new URI("http://trader:8888/trade"))
-                    .POST(HttpRequest.BodyPublishers.ofString(jsonString, StandardCharsets.UTF_8))
-                    .header("Content-Type", "application/json")
-                    .build();
-
-            httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-
+        try { 
+            client.newCall(request).execute();
         } catch (Exception e) {
             e.printStackTrace();
         }
