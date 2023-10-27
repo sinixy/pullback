@@ -2,7 +2,7 @@ package handler;
 
 import java.util.HashMap;
 
-import output.Socket;
+import output.Trader;
 import config.Config;
 
 
@@ -14,7 +14,7 @@ public class Symbol {
     public EMA signalEMA;
     public EMA structEMA;
 
-    private String currentlyTrading = null;
+    private boolean currentlyTrading = false;
 
     public HashMap<String, Double> latestPump = new HashMap<String, Double>();
 
@@ -43,14 +43,15 @@ public class Symbol {
                 segment.end = structEMA.latestPoint;
                 CheckResults results = Strategy.shouldBuy(this);
                 if (results.shouldBuy) {
-                    currentlyTrading = sendBuyRequest(results, point);
+                    sendBuyRequest(results, point);
+                    currentlyTrading = true;
                 }
                 segment = new Segment(point, signalEMA, structEMA);
             } else if ( (Double.compare(signalPrice, structPrice) > 0) && (segment.direction == "BULLISH") ) {
                 // potential sell or pump
-                if (currentlyTrading != null) {
+                if (currentlyTrading) {
                     sendSellRequest(point);
-                    currentlyTrading = null;
+                    currentlyTrading = false;
                 }
                 Double increase = segment.getIncrease();
                 if (Double.compare(increase, 0.015) > 0) {
@@ -67,12 +68,12 @@ public class Symbol {
         return difference;
     }
 
-    String sendBuyRequest(CheckResults results, Point trigger) {
-        return Socket.sendBuyMessage(symbol, results, structEMA.latestPoint, trigger);
+    private void sendBuyRequest(CheckResults results, Point trigger) {
+        Trader.sendBuyMessage(symbol, results, structEMA.latestPoint, trigger);
     }
 
     private void sendSellRequest(Point trigger) {
-        Socket.sendSellMessage(currentlyTrading, structEMA.latestPoint, trigger);
+        Trader.sendSellMessage(symbol, structEMA.latestPoint, trigger);
     }
 
 }

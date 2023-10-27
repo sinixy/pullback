@@ -1,18 +1,12 @@
-from dotenv import load_dotenv
 from typing import List
 import os
-
-
-load_dotenv()
 
 
 class Config:
     MONGODB_HOST = os.environ['MONGODB_HOST']
     MONGODB_NAME = os.environ['MONGODB_NAME']
 
-    UNIX_SOCKET_ADDRESS = os.environ['UNIX_SOCKET_ADDRESS']
-    WEBSOCKET_HOST = os.environ['WEBSOCKET_HOST']
-    WEBSOCKET_PORT = os.environ['WEBSOCKET_PORT']
+    LOCAL_SERVER_PORT = os.environ['LOCAL_SERVER_PORT']
 
     BINANCE_API_KEY = os.environ['BINANCE_API_KEY']
     BINANCE_API_SECRET = os.environ['BINANCE_API_SECRET']

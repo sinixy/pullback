@@ -1,0 +1,4 @@
+python-binance==1.0.17
+motor==3.1.2
+aiologger==0.7.0
+aiofiles==23.1.0

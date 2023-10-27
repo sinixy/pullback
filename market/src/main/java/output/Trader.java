@@ -1,58 +1,41 @@
 package output;
 
-import java.io.IOException;
-import java.net.StandardProtocolFamily;
-import java.nio.ByteBuffer;
-import java.nio.channels.SocketChannel;
-import java.net.UnixDomainSocketAddress;
-import java.nio.file.Path;
-import java.util.concurrent.TimeUnit;
+import java.net.URI;
+import java.net.http.HttpRequest;
+import java.net.http.HttpClient;
+import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import handler.CheckResults;
 import handler.Point;
 
-// apt install openjdk-17-jdk openjdk-17-jre
 
-public class Socket {
-
-    private static UnixDomainSocketAddress address;
-    private static SocketChannel channel;
-    private static ByteBuffer buffer;
+public class Trader {
     
-    private static ObjectMapper mapper;
-
-    public static void init() throws IOException {
-        address = UnixDomainSocketAddress.of(Path.of("/tmp/socket"));
-        channel = SocketChannel.open(StandardProtocolFamily.UNIX);
-        buffer = ByteBuffer.allocate(1024);
-        mapper = new ObjectMapper();
-        channel.connect(address);
-    }
+    private static ObjectMapper mapper = new ObjectMapper();
+    private static HttpClient httpClient = HttpClient.newHttpClient();
 
     private static void sendMessage(ObjectNode message) {
-        String json = null;
         try {
-            json = mapper.writeValueAsString(message) + "\n";
-        } catch (JsonProcessingException ex) {
-            ex.printStackTrace();
-        }
-        buffer.clear();
-        buffer.put(json.getBytes());
-        buffer.flip();
-        while (buffer.hasRemaining()) {
-            try {
-                channel.write(buffer);
-            } catch (IOException ex) {
-                ex.printStackTrace();
-            }
+            String jsonString = message.toString();
+
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(new URI("http://trader:8888/trade"))
+                    .POST(HttpRequest.BodyPublishers.ofString(jsonString, StandardCharsets.UTF_8))
+                    .header("Content-Type", "application/json")
+                    .build();
+
+            httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
+        } catch (Exception e) {
+            e.printStackTrace();
         }
     }
     
-    public static String sendBuyMessage(String symbol, CheckResults results, Point buyPoint, Point trigger) {
+    public static void sendBuyMessage(String symbol, CheckResults results, Point buyPoint, Point trigger) {
         ObjectNode message = mapper.createObjectNode();
 
         ObjectNode trade = mapper.createObjectNode();
@@ -84,8 +67,6 @@ public class Socket {
         message.set("data", trade);
 
         sendMessage(message);
-
-        return symbol;
     }
 
     public static void sendSellMessage(String symbol, Point sellPoint, Point trigger) {

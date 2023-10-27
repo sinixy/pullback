@@ -7,7 +7,6 @@ from models.request import Request, BuyRequest, SellRequest
 from models.order import Order, BuyOrder, SellOrder
 from models.enums import SymbolStatus
 from db import trades_db
-from servers import ws
 
 from exceptions.handlers import SymbolHandler
 from exceptions import (
@@ -190,7 +189,6 @@ class Symbol:
         while not sold:
             if retries > 1000:
                 await logger.error(f'Too many retries selling {self.name}!')
-                await ws.send_error(f'Too many retries selling {self.name}!')
                 break
 
             await logger.info(f'(#{retries}) Trying to sell {self.name}...')
@@ -204,4 +202,3 @@ class Symbol:
 
         if sold:
             await logger.info(f'Sold {self.name} after {retries} retries!')
-            await ws.send_message(f'Sold {self.name} after {retries} retries!')

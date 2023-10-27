@@ -1,0 +1,25 @@
+services:
+
+  trader:
+    build: ./trader
+    init: true
+    environment:
+      - PYTHONUNBUFFERED=1
+      - PYTHONDONTWRITEBYTECODE=1
+    env_file:
+      - ./trader/.env
+    ports:
+      - "4372:8888"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8888/health"]
+      interval: 20s
+      timeout: 10s
+      retries: 3
+
+  market:
+    build: ./market
+    env_file:
+      - ./market/.env
+    depends_on:
+      trader:
+        condition: service_healthy

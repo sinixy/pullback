@@ -1,11 +1,15 @@
 import asyncio
+from aiohttp import web
 
 from config import Config
-from servers import ws
 from common import banana
 from exceptions import ExchangeInitializationException, WalletInitializationException
 from exceptions.handlers import ControllerHanlder
 
+    
+async def stop(app):
+    print('Stopping the application...')
+    await banana.close()
 
 def run(loop: asyncio.BaseEventLoop):
     from db import config_db, trades_db
@@ -40,20 +44,20 @@ def run(loop: asyncio.BaseEventLoop):
     except Exception as e:
         raise WalletInitializationException(e)
 
-    from trader import LiveTrader
-    from servers import UnixServer
-    trader = LiveTrader(wallet)
-    unix_server = UnixServer(Config.UNIX_SOCKET_ADDRESS, trader, loop=loop)
-    loop.create_task(unix_server.run())
-
-    ws.init(Config.WEBSOCKET_HOST, Config.WEBSOCKET_PORT)
-    loop.create_task(ws.run())
-
     from streams import OrderDataStream
     stream = OrderDataStream(wallet)
     loop.create_task(stream.start())
 
-    loop.run_forever()
+    from trader import LiveTrader
+    trader = LiveTrader(wallet)
+
+    from server.routes import routes
+    app = web.Application()
+    app['trader'] = trader
+    app.add_routes(routes)
+    app.on_shutdown.append(stop)
+    
+    web.run_app(app, port=Config.LOCAL_SERVER_PORT, loop=loop)
 
 
 if __name__ == '__main__':
@@ -67,6 +71,4 @@ if __name__ == '__main__':
     except Exception as e:
         loop.run_until_complete(exceptions_handler.handle(e))
     finally:
-        loop.run_until_complete(banana.close())
-        loop.run_until_complete(ws.close())
         print('See ya!')

@@ -3,18 +3,14 @@ package config;
 import output.Database;
 import org.bson.Document;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-
-import java.io.File;
-import java.io.IOException;
 import java.util.HashMap;
 
 
 public class Config {
-    private static ObjectMapper mapper = new ObjectMapper();
 
     public static String DB_URI;
     public static String DB_NAME;
+    public static String SIGNAL_PORT;
 
     public static String[] SYMBOLS;
     public static HashMap<String, Object> INDICATORS = new HashMap<String, Object>();
@@ -24,16 +20,8 @@ public class Config {
     public static Double MAX_SEGMENT_LENGTH;
 
     public static void load() {
-        HashMap<?, ?> config = null;
-
-        try {
-            config = mapper.readValue(new File(System.getProperty("user.dir"), "config.json"), HashMap.class);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-
-        DB_URI = (String) config.get("DB_URI");
-        DB_NAME = (String) config.get("DB_NAME");
+        DB_URI = System.getenv("DB_URI");
+        DB_NAME = System.getenv("DB_NAME");
 
         Database db = new Database(DB_URI, DB_NAME, "config");
         Document commonConfigDocument = db.collection.find(new Document("_id", "common")).first();

@@ -1,5 +1,3 @@
-from time import time
-
 from common import logger
 from models import BuyRequest, SellRequest, Wallet
 from models.enums import SymbolStatus
