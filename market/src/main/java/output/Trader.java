@@ -10,6 +10,7 @@ import okhttp3.RequestBody;
 
 import handler.CheckResults;
 import handler.Point;
+import config.Config;
 
 
 public class Trader {
@@ -21,7 +22,7 @@ public class Trader {
     private static void sendMessage(ObjectNode message) {
         RequestBody body = RequestBody.create(message.toString(), JSON);
         Request request = new Request.Builder()
-            .url("http://localhost:8888/trade")
+            .url(Config.TRADE_ENDPOINT)
             .post(body)
             .build();
 

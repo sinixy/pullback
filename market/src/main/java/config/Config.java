@@ -10,7 +10,7 @@ public class Config {
 
     public static String DB_URI;
     public static String DB_NAME;
-    public static String SIGNAL_PORT;
+    public static String TRADE_ENDPOINT;
 
     public static String[] SYMBOLS;
     public static HashMap<String, Object> INDICATORS = new HashMap<String, Object>();
@@ -22,6 +22,7 @@ public class Config {
     public static void load() {
         DB_URI = System.getenv("DB_URI");
         DB_NAME = System.getenv("DB_NAME");
+        TRADE_ENDPOINT = System.getenv("TRADE_ENDPOINT");
 
         Database db = new Database(DB_URI, DB_NAME, "config");
         Document commonConfigDocument = db.collection.find(new Document("_id", "common")).first();
