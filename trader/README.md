@@ -2,9 +2,14 @@
 
 ## Notes
 - Modes: EMULATOR, REAL
-- DO NOT LET THE ```_serve``` STUCK INSIDE AN INFINITE LOOP
 
 ## Releases
+
+### 1.3.0
+##### Dockerized
+And moved away from the unix-socket approach to a simple aiohttp web server as a result.
+##### Temporarily removed error reporting
+As I need to think of a more elegant way to do it now because of the dockerization.
 
 ### 1.2.6
 Sending a pong in response to any ping to keep the connection alive.
@@ -12,7 +17,7 @@ Sending a pong in response to any ping to keep the connection alive.
 ### 1.2.5
 ##### Bug fix
 - removed resetting the symbol inside ```suspend()``` as it caused ```sell_until_success()``` added in 1.2.3 not being able to access the quantity needed to sell the symbol; also it's just kinda useless to do it anyway
-- removed allowing buy inside the sell_until_success method as it's supposed to happen in case of successful sell fill
+- removed allowing buy inside the sell_until_success method as it's supposed to happen in the case of successful sell fill
 
 ### 1.2.4
 ##### Bug fix
